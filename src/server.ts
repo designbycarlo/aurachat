@@ -17,11 +17,7 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Root path - Railway's default health check hits this
-app.get('/', (req, res) => {
-  res.status(200).send('AuraChat is running');
-});
-
+// Serve static frontend files (index.html at root path)
 app.use(express.static('public'));
 
 /**
