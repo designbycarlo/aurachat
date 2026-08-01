@@ -110,6 +110,16 @@ export function createFailoverModel(
   function isFailoverError(error: unknown): boolean {
     if (error instanceof Error) {
       const msg = error.message.toLowerCase();
+
+      // Check for AI_APICallError properties (statusCode, data.code)
+      const statusCode = (error as { statusCode?: number }).statusCode;
+      const errorCode = (error as { data?: { code?: number } }).data?.code;
+      const code = statusCode ?? errorCode;
+
+      if (code !== undefined && (code === 429 || code === 500 || code === 502 || code === 503 || code === 504)) {
+        return true;
+      }
+
       return (
         // Network / connection errors
         msg.includes('fetch failed') ||
@@ -133,7 +143,10 @@ export function createFailoverModel(
         msg.includes('no available model') ||
         msg.includes('insufficient_quota') ||
         msg.includes('rate limit') ||
-        msg.includes('too many requests')
+        msg.includes('too many requests') ||
+        msg.includes('provider_unavailable') ||
+        msg.includes('inference failed') ||
+        msg.includes('upstream error')
       );
     }
     return false;

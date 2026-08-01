@@ -6,7 +6,7 @@ import { createAgentUIStreamResponse } from 'ai';
 import { auraChatAgent } from './agent.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 // Middleware
 app.use(cors());
@@ -15,6 +15,11 @@ app.use(express.json());
 // Serve static frontend files
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Root path - Railway's default health check hits this
+app.get('/', (req, res) => {
+  res.status(200).send('AuraChat is running');
 });
 
 app.use(express.static('public'));
@@ -96,7 +101,17 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Listen on 0.0.0.0 so Railway can reach the server
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n  🚀 AuraChat Server running at http://localhost:${PORT}`);
   console.log(`  📡 API endpoint: http://localhost:${PORT}/api/chat\n`);
+});
+
+// Prevent crashes from unhandled errors
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
 });
