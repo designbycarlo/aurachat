@@ -46,6 +46,13 @@ export function createFailoverModel(
   preferredModel?: string,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
 ): LanguageModelV4 {
+  // Ensure the API key is present - OpenRouter requires it even for free models
+  if (!apiKey) {
+    throw new Error(
+      'OPENROUTER_API_KEY is not set. Get a free key at https://openrouter.ai/keys and add it to your environment variables.',
+    );
+  }
+
   // Build the ordered model list: preferred first, then the free fallback list
   const modelIds = [
     ...(preferredModel ? [preferredModel] : []),
@@ -53,10 +60,16 @@ export function createFailoverModel(
   ];
 
   // Create a provider instance for each model (they share the same base URL)
+  // Explicitly set the Authorization header to ensure it's always sent
   const provider = createOpenAICompatible({
     name: 'openrouter',
     baseURL: 'https://openrouter.ai/api/v1',
     apiKey,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'HTTP-Referer': 'https://github.com/designbycarlo/aurachat',
+      'X-Title': 'AuraChat',
+    },
     includeUsage: true,
   });
 
