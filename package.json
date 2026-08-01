@@ -28,8 +28,8 @@
   },
   "homepage": "https://github.com/designbycarlo/aurachat#readme",
   "dependencies": {
-    "@ai-sdk/deepseek": "^3.0.17",
     "@ai-sdk/openai": "^4.0.25",
+    "@ai-sdk/openai-compatible": "^3.0.20",
     "ai": "^7.0.44",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",

@@ -10,7 +10,7 @@ const terminal = readline.createInterface({
 async function main() {
   console.log('╔══════════════════════════════════════════════╗');
   console.log('║           🤖 AuraChat AI Agent              ║');
-  console.log('║   Built with Vercel AI SDK (ToolLoopAgent)  ║');
+  console.log('║   Powered by OpenRouter (free models)       ║');
   console.log('╚══════════════════════════════════════════════╝');
   console.log('');
   console.log('Available commands:');

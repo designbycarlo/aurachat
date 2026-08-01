@@ -1,13 +1,25 @@
 import { ToolLoopAgent, tool, isStepCount } from 'ai';
-import { deepSeek } from '@ai-sdk/deepseek';
 import { z } from 'zod';
+import { createFailoverModel } from './failover-model.js';
 
 /**
  * Resolve the language model to use.
- * Uses DeepSeek (reads DEEPSEEK_API_KEY from environment automatically).
+ * Uses OpenRouter with automatic failover between free models.
+ *
+ * The failover model tries the preferred model (OPENROUTER_MODEL) first,
+ * then automatically switches to the next available free model if the
+ * current one fails, errors, or times out (idle).
+ *
+ * Free models (suffixed `:free`) can be used at no cost with a free API key
+ * from https://openrouter.ai/keys.
  */
 function resolveModel() {
-  return deepSeek('deepseek-chat');
+  const timeoutMs = Number(process.env.OPENROUTER_TIMEOUT_MS) || undefined;
+  return createFailoverModel(
+    process.env.OPENROUTER_API_KEY,
+    process.env.OPENROUTER_MODEL,
+    timeoutMs,
+  );
 }
 
 /**
