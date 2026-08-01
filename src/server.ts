@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import { createAgentUIStreamResponse } from 'ai';
@@ -24,7 +25,7 @@ app.use(express.static('public'));
  */
 function toUIMessage(msg: { role?: string; content?: string; id?: string }) {
   return {
-    id: msg.id || crypto.randomUUID(),
+    id: msg.id || randomUUID(),
     role: msg.role || 'user',
     parts: [{ type: 'text' as const, text: msg.content || '' }],
   };
