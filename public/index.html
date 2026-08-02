@@ -167,6 +167,14 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .loading-text {
+      display: inline-block;
+      animation: fadeIn 0.4s ease;
+    }
   </style>
 </head>
 <body>
@@ -179,7 +187,7 @@
         <button type="submit" id="submitBtn">Analyze</button>
       </form>
       <div class="loading" id="loading">
-        <span class="spinner"></span>Analyzing your page...
+        <span class="spinner"></span><span class="loading-text" id="loadingText">Analyzing your page...</span>
       </div>
       <div class="error" id="error"></div>
       <div class="result" id="result">
@@ -212,8 +220,55 @@
     const urlInput = document.getElementById('urlInput');
     const submitBtn = document.getElementById('submitBtn');
     const loading = document.getElementById('loading');
+    const loadingText = document.getElementById('loadingText');
     const errorEl = document.getElementById('error');
     const result = document.getElementById('result');
+
+    const FUN_LOADING_TEXTS = [
+      'Analyzing your page...',
+      'Scanning meta tags for secrets...',
+      'Counting headings like a librarian...',
+      'Hunting for structured data...',
+      'Checking if AI can find you...',
+      'Measuring your AEO readiness...',
+      'Asking the AI gods for wisdom...',
+      'Decoding your Open Graph...',
+      'Looking for FAQ gold...',
+      'Evaluating conversational vibes...',
+      'Searching for schema.org treasures...',
+      'Polishing the crystal ball...',
+      'Consulting the SEO oracle...',
+      'Reading between the lines of your HTML...',
+      'Checking if ChatGPT would recommend you...',
+      'Seeing how Perplexity perceives you...',
+      'Whispering to the search algorithms...',
+      'Inspecting your JSON-LD for magic...',
+      'Counting words like they matter...',
+      'Gauging your AI-friendliness index...',
+    ];
+
+    let loadingInterval = null;
+    let loadingIndex = 0;
+
+    function startLoadingText() {
+      loadingIndex = 0;
+      loadingText.textContent = FUN_LOADING_TEXTS[0];
+      loadingInterval = setInterval(() => {
+        loadingIndex = (loadingIndex + 1) % FUN_LOADING_TEXTS.length;
+        loadingText.textContent = FUN_LOADING_TEXTS[loadingIndex];
+        // Restart the fade animation
+        loadingText.classList.remove('loading-text');
+        void loadingText.offsetWidth;
+        loadingText.classList.add('loading-text');
+      }, 2200);
+    }
+
+    function stopLoadingText() {
+      if (loadingInterval) {
+        clearInterval(loadingInterval);
+        loadingInterval = null;
+      }
+    }
 
     function gradeColor(score) {
       if (score >= 85) return 'var(--success)';
@@ -229,6 +284,7 @@
       if (!url) return;
       submitBtn.disabled = true;
       loading.style.display = 'block';
+      startLoadingText();
       errorEl.style.display = 'none';
       result.classList.remove('visible');
       try {
@@ -264,6 +320,7 @@
       } finally {
         submitBtn.disabled = false;
         loading.style.display = 'none';
+        stopLoadingText();
       }
     });
   </script>
