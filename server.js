@@ -203,7 +203,11 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`AI SEO/AEO Analyzer running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`AI SEO/AEO Analyzer running at http://0.0.0.0:${PORT}`);
 });
