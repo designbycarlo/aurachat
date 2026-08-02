@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>AuraChat — AI SEO / AEO Analyzer</title>
 
   <!-- Favicon (SVG for modern browsers) -->
@@ -73,7 +73,7 @@
       --warn: #facc15;
       --danger: #f87171;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; } html { -webkit-text-size-adjust: 100%; touch-action: manipulation; -ms-touch-action: manipulation; } body { touch-action: manipulation; -ms-touch-action: manipulation; overscroll-behavior: none; } @media (hover: none) and (pointer: coarse) { body { -webkit-touch-callout: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; } input, button { user-select: text; -webkit-user-select: text; } }
     body {
       margin: 0;
       font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
@@ -314,6 +314,34 @@
     </div>
   </div>
   <script>
+  // Prevent pinch-to-zoom and gesture-based zooming on mobile/touch devices only.
+  // This is a fallback for browsers (e.g., iOS 10+ Safari) that ignore
+  // user-scalable=no in the viewport meta tag for accessibility reasons.
+  (function () {
+    var isTouch = window.matchMedia("(hover: none) and (pointer: coarse)").matches
+      || ("ontouchstart" in window)
+      || (navigator.maxTouchPoints > 0);
+    if (!isTouch) return;
+
+    // Block iOS Safari proprietary gesture events (pinch/rotate)
+    ["gesturestart", "gesturechange", "gestureend"].forEach(function (evt) {
+      document.addEventListener(evt, function (e) { e.preventDefault(); }, { passive: false });
+    });
+
+    // Block multi-touch move events (pinch-to-zoom on Android/Chrome)
+    document.addEventListener("touchmove", function (e) {
+      if (e.touches && e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+
+    // Block double-tap-to-zoom by neutralizing rapid consecutive taps
+    var lastTouchEnd = 0;
+    document.addEventListener("touchend", function (e) {
+      var now = Date.now();
+      if (now - lastTouchEnd <= 300) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+  })();
+
     const form = document.getElementById('analyzeForm');
     const urlInput = document.getElementById('urlInput');
     const submitBtn = document.getElementById('submitBtn');
