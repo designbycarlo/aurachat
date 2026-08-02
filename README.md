@@ -16,6 +16,7 @@ No frameworks. No build step. No database. Just Node, Express, and a sprinkle of
 - **📊 Actionable report cards** — strengths, weaknesses, and prioritized recommendations, served as clean JSON
 - **🌀 Fun loading experience** — while the AI thinks, you'll see rotating messages like *"Consulting the SEO oracle..."* and *"Polishing the crystal ball..."*
 - **🎨 Polished dark UI** — responsive, dependency-free, and ready to ship
+- **📱 Mobile zoom prevention** — pinch-to-zoom and gesture zooming are disabled on touch devices for a native-app feel
 - **🚀 One-command deploy** to Railway (or any Node host)
 
 ---
@@ -226,6 +227,7 @@ aurachat/
 - Pages are fetched with a 15-second timeout and capped at 80,000 characters.
 - Analysis quality depends on the selected LLM — free models are great for experimentation; swap in a paid model for production-grade reports.
 - The `.env` file contains secrets — **never commit it to version control**.
+- Mobile zoom is disabled via viewport meta, CSS `touch-action`, and JS gesture blocking to prevent accidental pinch/double-tap zoom on touch devices.
 
 ---
 
