@@ -5,6 +5,7 @@ require('dotenv').config();
 
 const { createOpenAI } = require('@ai-sdk/openai');
 const { generateText } = require('ai');
+const { generatePDFReport } = require('./generate-pdf');
 
 const app = express();
 app.use(express.json());
@@ -205,6 +206,24 @@ app.post('/api/analyze', async (req, res) => {
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+app.post('/api/report/pdf', async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.signals) {
+      return res.status(400).json({ error: 'Report data is required' });
+    }
+    const pdfBuffer = await generatePDFReport(data);
+    const filename = `aurachat-seo-report-${Date.now()}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    res.status(500).json({ error: 'Failed to generate PDF report' });
+  }
 });
 
 const PORT = process.env.PORT || 3000;

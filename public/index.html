@@ -267,6 +267,37 @@
       display: inline-block;
       animation: fadeIn 0.4s ease;
     }
+    .pdf-btn-container {
+      margin-top: 20px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .pdf-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease;
+    }
+    .pdf-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(102,126,234,0.4);
+    }
+    .pdf-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
   </style>
 </head>
 <body>
@@ -310,6 +341,11 @@
             <ul id="recommendationsList"></ul>
           </div>
         </div>
+        <div class="pdf-btn-container">
+          <button type="button" class="pdf-btn" id="pdfBtn">
+            <span id="pdfBtnText">Download PDF Report</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -349,6 +385,9 @@
     const loadingText = document.getElementById('loadingText');
     const errorEl = document.getElementById('error');
     const result = document.getElementById('result');
+    const pdfBtn = document.getElementById('pdfBtn');
+
+    let lastResult = null;
 
     const FUN_LOADING_TEXTS = [
       'Analyzing your page...',
@@ -439,6 +478,7 @@
         fillList('strengthsList', data.strengths);
         fillList('weaknessesList', data.weaknesses);
         fillList('recommendationsList', data.recommendations);
+        lastResult = data;
         result.classList.add('visible');
       } catch (err) {
         errorEl.textContent = err.message;
@@ -447,6 +487,35 @@
         submitBtn.disabled = false;
         loading.style.display = 'none';
         stopLoadingText();
+      }
+    });
+
+    pdfBtn.addEventListener('click', async () => {
+      if (!lastResult) return;
+      pdfBtn.disabled = true;
+      pdfBtn.querySelector('#pdfBtnText').textContent = 'Generating PDF...';
+      try {
+        const res = await fetch('/api/report/pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(lastResult),
+        });
+        if (!res.ok) throw new Error('Failed to generate PDF');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aurachat-seo-report-${Date.now()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        pdfBtn.disabled = false;
+        pdfBtn.querySelector('#pdfBtnText').textContent = 'Download PDF Report';
       }
     });
   </script>
