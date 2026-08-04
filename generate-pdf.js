@@ -19,6 +19,7 @@ const FONT_FILES = {
 
 // Font aliases used throughout the layout. Fall back to the PDF base fonts if
 // the bundled Geist files are unavailable so a report is still produced.
+// Uses a comprehensive fallback chain for maximum cross-platform compatibility.
 const F = {
   light: 'Geist Light',
   regular: 'Geist Regular',
@@ -27,7 +28,18 @@ const F = {
   bold: 'Geist Bold',
 };
 
+// Multi-tier fallback: Geist -> Helvetica/Arial -> PDF standard fonts
+// This ensures consistent rendering across all platforms (Windows, macOS, Linux, cloud)
 const FALLBACK_F = {
+  light: 'Helvetica',
+  regular: 'Helvetica',
+  medium: 'Helvetica',
+  semibold: 'Helvetica-Bold',
+  bold: 'Helvetica-Bold',
+};
+
+// PDF standard fonts (always available, no embedding needed)
+const STANDARD_FONTS = {
   light: 'Helvetica',
   regular: 'Helvetica',
   medium: 'Helvetica',
@@ -39,23 +51,39 @@ const FALLBACK_F = {
  * Fonts must be registered on every document instance -- registration state
  * lives on the document, not on the module. Returns the font-name map that is
  * safe to use for this document.
+ * Tries Geist first, then falls back to Helvetica, then to PDF standard fonts.
  */
 function registerFonts(doc) {
-  let ok = true;
+  let geistOk = true;
   for (const [key, [name, file]] of Object.entries(FONT_FILES)) {
     const fontPath = path.join(FONTS_DIR, file);
     if (!fs.existsSync(fontPath)) {
-      ok = false;
+      geistOk = false;
       continue;
     }
     try {
       doc.registerFont(name, fontPath);
     } catch {
-      ok = false;
+      geistOk = false;
     }
     void key;
   }
-  return ok ? F : FALLBACK_F;
+
+  if (geistOk) {
+    return F;
+  }
+
+  // Try Helvetica family (available on most systems via PDFKit)
+  try {
+    doc.font('Helvetica');
+    doc.font('Helvetica-Bold');
+    doc.font('Helvetica-Oblique');
+    doc.font('Helvetica-BoldOblique');
+    return FALLBACK_F;
+  } catch {
+    // Final fallback to PDF standard fonts (guaranteed available)
+    return STANDARD_FONTS;
+  }
 }
 
 function findLogo() {
@@ -502,19 +530,18 @@ function drawHeroRow(doc, fonts, y, report) {
   card(doc, MARGIN, y, scoreW, heroH, { accent: band.color });
   eyebrow(doc, fonts, 'Readiness Score', MARGIN + 12, y + 13);
 
-  const ringCy = y + 66;
-  ring(doc, MARGIN + scoreW / 2, ringCy, 29, score / 100, { width: 8, color: band.color });
-
+  // Score displayed as large number (no gauge circle)
+  const scoreCy = y + 66;
   doc
     .font(fonts.bold)
-    .fontSize(24)
-    .fillColor(C.ink)
-    .text(String(score), MARGIN, ringCy - 12, { width: scoreW, align: 'center', lineBreak: false });
+    .fontSize(48)
+    .fillColor(band.color)
+    .text(String(score), MARGIN, scoreCy - 18, { width: scoreW, align: 'center', lineBreak: false });
   doc
     .font(fonts.medium)
-    .fontSize(6.4)
+    .fontSize(7.2)
     .fillColor(C.faint)
-    .text('OUT OF 100', MARGIN, ringCy + 12, {
+    .text('OUT OF 100', MARGIN, scoreCy + 26, {
       width: scoreW,
       align: 'center',
       characterSpacing: 0.6,

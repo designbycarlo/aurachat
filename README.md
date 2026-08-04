@@ -14,9 +14,12 @@ No frameworks. No build step. No database. Just Node, Express, and a sprinkle of
 - **🔍 Deep signal extraction** — title tags, meta descriptions, canonical URLs, Open Graph, JSON-LD structured data, heading hierarchy, word count, FAQ/How-to detection, conversational tone, and AI-agent markers
 - **🧠 LLM-powered analysis** via [OpenRouter](https://openrouter.ai) with **automatic model failover** — if the primary model hiccups, AuraChat seamlessly falls back to the next free model
 - **📊 Actionable report cards** — strengths, weaknesses, and prioritized recommendations, served as clean JSON
+- **📄 Export to PDF & CSV** — one-click download of a polished one-page PDF report or raw CSV data for spreadsheets
+- **🎨 Widget-based dashboard** — animated, responsive layout with score gauge, signal coverage grid, stat tiles, and list panels
 - **🌀 Fun loading experience** — while the AI thinks, you'll see rotating messages like *"Consulting the SEO oracle..."* and *"Polishing the crystal ball..."*
 - **🎨 Polished dark UI** — responsive, dependency-free, and ready to ship
 - **📱 Mobile zoom prevention** — pinch-to-zoom and gesture zooming are disabled on touch devices for a native-app feel
+- **📦 PWA ready** — installable web app with manifest, icons, and offline-capable structure
 - **🚀 One-command deploy** to Railway (or any Node host)
 
 ---
@@ -29,6 +32,7 @@ No frameworks. No build step. No database. Just Node, Express, and a sprinkle of
 | Server      | Express                                         |
 | AI SDK      | [Vercel AI SDK](https://sdk.vercel.ai) (`ai`)   |
 | LLM Gateway | [OpenRouter](https://openrouter.ai) (free tier) |
+| PDF         | [PDFKit](https://pdfkit.org)                    |
 | Frontend    | Vanilla HTML, CSS, and JS — zero build step     |
 | Deploy      | Railway (Nixpacks)                              |
 
@@ -106,6 +110,22 @@ Analyze a URL for AI SEO / AEO readiness.
 | 400    | Missing or invalid URL           |
 | 500    | Analysis failed (server error)   |
 
+### `POST /api/report/pdf`
+
+Generate a one-page PDF report from analysis data.
+
+**Request body** — the full response object from `/api/analyze`
+
+**Response (200)** — `application/pdf` binary stream with `Content-Disposition: inline`
+
+### `POST /api/report/csv`
+
+Generate a CSV export from analysis data.
+
+**Request body** — the full response object from `/api/analyze`
+
+**Response (200)** — `text/csv` binary stream with `Content-Disposition: attachment`
+
 ### `GET /health`
 
 Returns `{ "status": "ok" }` — used by Railway for health checks.
@@ -122,15 +142,15 @@ User submits URL
 │  Fetch page  │ ──▶ │ Extract signals  │ ──▶ │  Build AI prompt │
 │  (15s limit) │     │ (SEO + AEO data) │     │  (heuristics)    │
 └──────────────┘     └──────────────────┘     └─────────────────┘
-                                                        │
-                                                        ▼
-                                    ┌──────────────────────────────┐
-                                    │  Generate report via LLM     │
-                                    │  (with model failover)       │
-                                    └──────────────────────────────┘
-                                                        │
-                                                        ▼
-                                              JSON report → UI
+                                                         │
+                                                         ▼
+                                     ┌──────────────────────────────┐
+                                     │  Generate report via LLM     │
+                                     │  (with model failover)       │
+                                     └──────────────────────────────┘
+                                                         │
+                                                         ▼
+                                               JSON report → UI
 ```
 
 ### Scoring Heuristics
@@ -201,12 +221,15 @@ Set `PORT` and `OPENROUTER_API_KEY` as environment variables.
 
 ```
 aurachat/
-├── server.js          # Express server, signal extraction, AI analysis
+├── server.js              # Express server, signal extraction, AI analysis
+├── generate-pdf.js        # PDFKit report generator (one-page, print-optimized)
 ├── public/
-│   └── index.html     # Frontend UI (dark theme, fun loading texts)
-├── package.json       # Dependencies and scripts
-├── railway.toml       # Railway deployment config
-└── .env               # Environment variables (not committed)
+│   └── index.html         # Frontend UI (widget dashboard, dark theme, PWA)
+├── fonts/                 # Geist variable font (self-hosted)
+├── package.json           # Dependencies and scripts
+├── railway.toml           # Railway deployment config
+├── .env                   # Environment variables (not committed)
+└── .env.example           # Example environment file
 ```
 
 ---
@@ -221,6 +244,16 @@ aurachat/
 
 ---
 
+## 🛠️ Scripts
+
+| Command         | Description                          |
+| --------------- | ------------------------------------ |
+| `npm start`     | Start production server              |
+| `npm run dev`   | Start development server (alias)     |
+| `npm run icons` | Generate PWA icons from SVG source   |
+
+---
+
 ## 🛡️ Notes & Limitations
 
 - Only `http` and `https` URLs are accepted.
@@ -228,6 +261,8 @@ aurachat/
 - Analysis quality depends on the selected LLM — free models are great for experimentation; swap in a paid model for production-grade reports.
 - The `.env` file contains secrets — **never commit it to version control**.
 - Mobile zoom is disabled via viewport meta, CSS `touch-action`, and JS gesture blocking to prevent accidental pinch/double-tap zoom on touch devices.
+- PDF reports are single-page by design — content intelligently scales to fit.
+- CSV exports include all signals, strengths, weaknesses, and recommendations in a tabular format.
 
 ---
 
