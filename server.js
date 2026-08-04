@@ -226,6 +226,54 @@ app.post('/api/report/pdf', async (req, res) => {
   }
 });
 
+app.post('/api/report/csv', async (req, res) => {
+  try {
+    const data = req.body;
+    if (!data || !data.signals) {
+      return res.status(400).json({ error: 'Report data is required' });
+    }
+    const rows = [];
+    rows.push(['Metric', 'Value']);
+    rows.push(['Score', data.score ?? 0]);
+    rows.push(['Grade', data.grade || '--']);
+    rows.push(['URL', data.signals?.url || '']);
+    rows.push(['Title', data.signals?.title || '']);
+    rows.push(['Meta Description', data.signals?.metaDescription || '']);
+    rows.push(['Canonical', data.signals?.canonical || '']);
+    rows.push(['Open Graph Title', data.signals?.ogTitle || '']);
+    rows.push(['Open Graph Description', data.signals?.ogDescription || '']);
+    rows.push(['Has JSON-LD', data.signals?.hasJsonLd ? 'Yes' : 'No']);
+    rows.push(['JSON-LD Blocks', data.signals?.jsonLdCount || 0]);
+    rows.push(['Word Count', data.signals?.wordCount || 0]);
+    rows.push(['Has FAQ', data.signals?.hasFAQ ? 'Yes' : 'No']);
+    rows.push(['Has How-to', data.signals?.hasHowTo ? 'Yes' : 'No']);
+    rows.push(['Has Schema.org', data.signals?.hasSchemaOrg ? 'Yes' : 'No']);
+    rows.push(['Conversational Content', data.signals?.hasConversationalContent ? 'Yes' : 'No']);
+    rows.push(['AI Agent Markers', data.signals?.hasAIAgentMarkers ? 'Yes' : 'No']);
+    rows.push(['Headings', JSON.stringify(data.signals?.headings || [])]);
+    rows.push([]);
+    rows.push(['Strengths', '']);
+    (data.strengths || []).forEach((s) => rows.push([s, '']));
+    rows.push([]);
+    rows.push(['Weaknesses', '']);
+    (data.weaknesses || []).forEach((w) => rows.push([w, '']));
+    rows.push([]);
+    rows.push(['Recommendations', '']);
+    (data.recommendations || []).forEach((r) => rows.push([r, '']));
+
+    const csvContent = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const buffer = Buffer.from(csvContent, 'utf-8');
+    const filename = `aurachat-seo-report-${Date.now()}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+  } catch (err) {
+    console.error('CSV generation error:', err);
+    res.status(500).json({ error: 'Failed to generate CSV report' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`AI SEO/AEO Analyzer running at http://0.0.0.0:${PORT}`);

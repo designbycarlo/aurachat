@@ -18,57 +18,34 @@ function registerFonts(document) {
 
 const PAGE_W = 612;
 const PAGE_H = 792;
-const MARGIN = 55;
+const MARGIN = 50;
 const CONTENT_W = PAGE_W - MARGIN * 2;
-
-const GRADE_COLORS = {
-  S: '#22c55e',
-  A: '#4ade80',
-  B: '#38bdf8',
-  C: '#facc15',
-  D: '#fb923c',
-  F: '#f87171',
-};
-
-function scoreColor(score) {
-  if (score >= 85) return { light: '#86efac', dark: '#22c55e' };
-  if (score >= 70) return { light: '#7dd3fc', dark: '#0ea5e9' };
-  if (score >= 55) return { light: '#fde68a', dark: '#ca8a04' };
-  if (score >= 40) return { light: '#fdba74', dark: '#ea580c' };
-  return { light: '#fecaca', dark: '#dc2626' };
-}
-
-function gradeColor(grade) {
-  return GRADE_COLORS[grade] || '#94a3b8';
-}
 
 function truncate(text, max) {
   if (!text) return '';
   if (text.length <= max) return text;
-  return text.slice(0, max - 1).trim() + '…';
+  return text.slice(0, max - 1).trim() + '\u2026';
 }
 
-function drawCheck(doc, x, y, color, size) {
-  const s = size || 12;
+function drawCheck(doc, x, y, size) {
+  const s = size || 10;
   doc.save();
-  doc.strokeColor(color);
-  doc.lineWidth(2);
-  doc.moveTo(x - s * 0.5, y);
-  doc.lineTo(x - s * 0.2, y + s * 0.5);
-  doc.lineTo(x + s * 0.5, y - s * 0.3);
+  doc.lineWidth(1.5);
+  doc.moveTo(x - s * 0.45, y);
+  doc.lineTo(x - s * 0.15, y + s * 0.45);
+  doc.lineTo(x + s * 0.45, y - s * 0.25);
   doc.stroke();
   doc.restore();
 }
 
-function drawX(doc, x, y, color, size) {
-  const s = size || 12;
+function drawX(doc, x, y, size) {
+  const s = size || 10;
   doc.save();
-  doc.strokeColor(color);
-  doc.lineWidth(2);
-  doc.moveTo(x - s * 0.4, y - s * 0.4);
-  doc.lineTo(x + s * 0.4, y + s * 0.4);
-  doc.moveTo(x + s * 0.4, y - s * 0.4);
-  doc.lineTo(x - s * 0.4, y + s * 0.4);
+  doc.lineWidth(1.5);
+  doc.moveTo(x - s * 0.35, y - s * 0.35);
+  doc.lineTo(x + s * 0.35, y + s * 0.35);
+  doc.moveTo(x + s * 0.35, y - s * 0.35);
+  doc.lineTo(x - s * 0.35, y + s * 0.35);
   doc.stroke();
   doc.restore();
 }
@@ -80,7 +57,7 @@ function generatePDFReport(data) {
         size: 'LETTER',
         margin: 0,
         info: {
-          Title: `AI SEO/AEO Report — ${data.signals?.url || 'AuraChat Analysis'}`,
+          Title: `AI SEO/AEO Report \u2014 ${data.signals?.url || 'AuraChat Analysis'}`,
           Author: 'AuraChat',
           Subject: 'AI SEO & AEO Readiness Report',
           Keywords: 'SEO, AEO, AI Readiness, Search Engine Optimization, Answer Engine Optimization, AI Discovery',
@@ -102,7 +79,7 @@ function generatePDFReport(data) {
       const weaknesses = data.weaknesses || [];
       const recommendations = data.recommendations || [];
       const signals = data.signals || {};
-      const url = truncate(signals.url || 'N/A', 48);
+      const url = truncate(signals.url || 'N/A', 50);
       const now = new Date();
       const timestamp = now.toLocaleDateString('en-US', {
         month: 'short',
@@ -112,107 +89,88 @@ function generatePDFReport(data) {
 
       let y = MARGIN;
 
-      // ── Background subtle gradient overlay ──
-      const bgGrad = document.linearGradient(0, 0, 0, PAGE_H);
-      bgGrad.stop(0, '#0f172a');
-      bgGrad.stop(1, '#1e293b');
-      document.rect(0, 0, PAGE_W, PAGE_H).fill(bgGrad);
+      document.rect(0, 0, PAGE_W, PAGE_H).fill('#ffffff');
 
-      // ── Header ──
       const logoPath = path.join(__dirname, '..', 'public', 'favicon-32.png');
       if (fs.existsSync(logoPath)) {
-        document.image(logoPath, MARGIN, y, { width: 32, height: 32 });
+        document.image(logoPath, MARGIN, y, { width: 28, height: 28 });
       }
 
-      document.font('Geist SemiBold').fontSize(18).fillColor('#f8fafc').text(
+      document.font('Geist SemiBold').fontSize(16).fillColor('#000000').text(
         'AI SEO / AEO Summary',
-        MARGIN + 44,
-        y + 6
+        MARGIN + 38,
+        y + 4
       );
-      document.font('Geist Regular').fontSize(10).fillColor('#94a3b8').text(
+      document.font('Geist Regular').fontSize(9).fillColor('#555555').text(
         'Report',
-        MARGIN + 44,
-        y + 22
+        MARGIN + 38,
+        y + 18
       );
 
-      y += 44;
+      y += 38;
 
-      // URL row
-      document.font('Geist Medium').fontSize(11).fillColor('#38bdf8').text(
+      document.font('Geist Medium').fontSize(10).fillColor('#000000').text(
         'Analyzed URL',
         MARGIN,
         y
       );
-      document.font('Geist Regular').fontSize(10).fillColor('#cbd5e1').text(
+      document.font('Geist Regular').fontSize(9).fillColor('#444444').text(
         url,
         MARGIN,
-        y + 14
+        y + 12
       );
 
-      y += 42;
+      y += 36;
 
-      // ── Score & Grade ──
-      const colors = scoreColor(score);
-      const gradeC = gradeColor(grade);
+      const circleX = MARGIN + 28;
+      const circleY = y + 30;
+      const circleR = 30;
 
-      // Score circle with gradient
-      const circleX = MARGIN + 30;
-      const circleY = y + 35;
-      const circleR = 34;
+      document.circle(circleX, circleY, circleR).fill('#ffffff').stroke('#000000').lineWidth(2);
 
-      const grad = document.radialGradient(circleX, circleY, 0, circleX, circleY, circleR);
-      grad.stop(0, colors.light);
-      grad.stop(1, colors.dark);
-
-      document.circle(circleX, circleY, circleR).fill(grad);
-      document.circle(circleX, circleY, circleR - 4).fill('#0f172a').opacity(0.12);
-
-      document.font('Geist Bold').fontSize(22).fillColor('#0f172a').text(
+      document.font('Geist Bold').fontSize(20).fillColor('#000000').text(
         String(score),
-        circleX - 22,
-        circleY - 10
+        circleX - 18,
+        circleY - 8
       );
 
-      // Grade badge
-      const gradeBadgeX = circleX + circleR + 24;
-      const gradeBadgeY = circleY - 22;
-      document.roundedRect(gradeBadgeX, gradeBadgeY, 64, 44, 10).fill(gradeC);
-      document.font('Geist Bold').fontSize(20).fillColor('#0f172a').text(
+      const gradeBadgeX = circleX + circleR + 20;
+      const gradeBadgeY = circleY - 18;
+      document.roundedRect(gradeBadgeX, gradeBadgeY, 56, 36, 8).fill('#ffffff').stroke('#000000').lineWidth(1.5);
+      document.font('Geist Bold').fontSize(18).fillColor('#000000').text(
         grade,
-        gradeBadgeX + 32,
-        gradeBadgeY + 18,
+        gradeBadgeX + 28,
+        gradeBadgeY + 14,
         { align: 'center' }
       );
 
-      document.font('Geist SemiBold').fontSize(13).fillColor('#facc15').text(
+      document.font('Geist SemiBold').fontSize(11).fillColor('#000000').text(
         'SCORE',
-        circleX - 24,
-        y - 4
+        circleX - 20,
+        y - 2
       );
-      document.font('Geist SemiBold').fontSize(13).fillColor('#94a3b8').text(
+      document.font('Geist SemiBold').fontSize(11).fillColor('#000000').text(
         'GRADE',
-        gradeBadgeX + 6,
-        y - 4
+        gradeBadgeX + 4,
+        y - 2
       );
 
-      y += 88;
+      y += 78;
 
-      // Summary
-      document.font('Geist Regular').fontSize(10).fillColor('#cbd5e1').text(
+      document.font('Geist Regular').fontSize(9).fillColor('#333333').text(
         summary,
         MARGIN,
         y,
-        { width: CONTENT_W, align: 'center' }
+        { width: CONTENT_W, align: 'left' }
       );
-      y += document.heightOfString(summary, { width: CONTENT_W, fontSize: 10 }) + 20;
+      y += document.heightOfString(summary, { width: CONTENT_W, fontSize: 9 }) + 16;
 
-      // ── Key Metrics Grid ──
-      document.font('Geist SemiBold').fontSize(11).fillColor('#38bdf8').text(
+      document.font('Geist SemiBold').fontSize(10).fillColor('#000000').text(
         'Key Signals',
         MARGIN,
         y
       );
-      y += 18;
+      y += 14;
 
       const metrics = [
         { label: 'Title Tag', ok: !!signals.title },
@@ -225,11 +183,11 @@ function generatePDFReport(data) {
         { label: 'Conversational', ok: signals.hasConversationalContent },
       ];
 
-      const badgeW = 70;
-      const badgeH = 30;
+      const badgeW = 66;
+      const badgeH = 26;
       const cols = 4;
       const rows = 2;
-      const badgeGap = 12;
+      const badgeGap = 10;
       const gridW = cols * badgeW + (cols - 1) * badgeGap;
       const gridStartX = MARGIN + (CONTENT_W - gridW) / 2;
 
@@ -239,76 +197,63 @@ function generatePDFReport(data) {
         const bx = gridStartX + col * (badgeW + badgeGap);
         const by = y + row * (badgeH + badgeGap);
         const m = metrics[i];
-        const badgeColor = m.ok
-          ? 'rgba(74,222,128,0.15)'
-          : 'rgba(248,113,113,0.15)';
-        const borderColor = m.ok ? '#4ade80' : '#f87171';
-        const iconColor = m.ok ? '#4ade80' : '#f87171';
 
         document.save();
-        document.roundedRect(bx, by, badgeW, badgeH, 6).fill(badgeColor).stroke(borderColor).lineWidth(1);
+        document.roundedRect(bx, by, badgeW, badgeH, 4).fill('#ffffff').stroke('#000000').lineWidth(0.75);
         document.restore();
 
         if (m.ok) {
-          drawCheck(document, bx + 16, by + 15, iconColor, 8);
+          drawCheck(document, bx + 14, by + 13, 7);
         } else {
-          drawX(document, bx + 16, by + 15, iconColor, 8);
+          drawX(document, bx + 14, by + 13, 7);
         }
 
-        document.font('Geist Medium').fontSize(8).fillColor(m.ok ? '#4ade80' : '#f87171').text(
+        document.font('Geist Medium').fontSize(7).fillColor('#000000').text(
           m.label,
-          bx + 28,
-          by + 9
+          bx + 24,
+          by + 8
         );
       }
 
-      y += rows * badgeH + (rows - 1) * badgeGap + 16;
+      y += rows * badgeH + (rows - 1) * badgeGap + 14;
 
-      // Word count + headings info
-      document.font('Geist Medium').fontSize(9).fillColor('#94a3b8').text(
-        `Words: ${signals.wordCount || 0}  ·  Headings H${signals.headings && signals.headings.length > 0
+      document.font('Geist Medium').fontSize(8).fillColor('#555555').text(
+        `Words: ${signals.wordCount || 0}  \u00b7  Headings H${signals.headings && signals.headings.length > 0
           ? signals.headings[0].level
-          : '-'}  ·  JSON-LD blocks: ${signals.jsonLdCount || 0}`,
+          : '-'}  \u00b7  JSON-LD blocks: ${signals.jsonLdCount || 0}`,
         MARGIN,
         y
       );
-      y += 22;
+      y += 18;
 
-      // ── Strengths ──
       let currentY = y;
-      currentY = drawSection(document, 'Strengths', strengths, '#4ade80', '#bbf7d0', MARGIN, currentY, 2, true, score, grade) || currentY;
+      currentY = drawSection(document, 'Strengths', strengths, MARGIN, currentY, 3, true) || currentY;
 
-      // ── Weaknesses ──
-      let weaknessesY = currentY + 24;
-      if (weaknesses.length > 0) {
-        weaknessesY = currentY + 24;
-      }
-      currentY = drawSection(document, 'Weaknesses', weaknesses, '#fbbf24', '#fecaca', MARGIN, weaknessesY, 2, false, score, grade) || weaknessesY;
+      let weaknessesY = currentY + 18;
+      currentY = drawSection(document, 'Weaknesses', weaknesses, MARGIN, weaknessesY, 3, false) || weaknessesY;
 
-      // ── Recommendations ──
-      let recY = currentY + 24;
-      currentY = drawSection(document, 'Recommendations', recommendations, '#38bdf8', '#f8fafc', MARGIN, recY, 2, false, score, grade, true) || recY;
+      let recY = currentY + 18;
+      currentY = drawSection(document, 'Recommendations', recommendations, MARGIN, recY, 3, false, true) || recY;
 
-      // ── Footer ──
-      const footerY = PAGE_H - MARGIN - 30;
+      const footerY = PAGE_H - MARGIN - 24;
 
       document.save();
-      document.strokeColor('#334155');
-      document.lineWidth(1);
-      document.moveTo(MARGIN, footerY - 14);
-      document.lineTo(PAGE_W - MARGIN, footerY - 14);
+      document.strokeColor('#000000');
+      document.lineWidth(0.5);
+      document.moveTo(MARGIN, footerY - 10);
+      document.lineTo(PAGE_W - MARGIN, footerY - 10);
       document.stroke();
       document.restore();
 
-      document.font('Geist Regular').fontSize(8).fillColor('#64748b').text(
-        `Generated by AuraChat  ·  ${timestamp}`,
+      document.font('Geist Regular').fontSize(7).fillColor('#555555').text(
+        `Generated by AuraChat  \u00b7  ${timestamp}`,
         MARGIN,
         footerY
       );
 
-      document.font('Geist Medium').fontSize(8).fillColor('#475569').text(
+      document.font('Geist Medium').fontSize(7).fillColor('#555555').text(
         `Page 1 of 1`,
-        PAGE_W - MARGIN - 40,
+        PAGE_W - MARGIN - 36,
         footerY,
         { align: 'right' }
       );
@@ -320,74 +265,71 @@ function generatePDFReport(data) {
   });
 }
 
-function drawSection(doc, title, items, titleColor, itemColor, startX, startY, maxItems, isFirst, score, grade, numbered) {
+function drawSection(doc, title, items, startX, startY, maxItems, isFirst, numbered) {
   if (!items.length) return startY;
 
   let y = startY;
 
-  doc.font('Geist SemiBold').fontSize(11).fillColor(titleColor).text(
+  doc.font('Geist SemiBold').fontSize(10).fillColor('#000000').text(
     title,
     startX,
     y
   );
-  y += 16;
+  y += 14;
 
-  const bulletR = 5;
-  const indent = 24;
+  const indent = 22;
   const itemWidth = CONTENT_W - indent;
-  const maxItemsToShow = numbered ? Math.min(items.length, 6) : maxItems;
+  const maxItemsToShow = numbered ? Math.min(items.length, 5) : maxItems;
   const hasMore = items.length > maxItemsToShow;
 
   for (let i = 0; i < maxItemsToShow; i++) {
     const item = items[i];
-    const textColor = numbered ? '#f8fafc' : itemColor;
 
     if (numbered) {
-      // Numbered badge
       const badgeX = startX;
       const badgeY = y;
-      doc.roundedRect(badgeX, badgeY, 18, 18, 4).fill('#1e293b').stroke('#334155').lineWidth(0.5);
-      doc.font('Geist Bold').fontSize(9).fillColor('#38bdf8').text(
+      doc.roundedRect(badgeX, badgeY, 16, 16, 3).fill('#ffffff').stroke('#000000').lineWidth(0.5);
+      doc.font('Geist Bold').fontSize(8).fillColor('#000000').text(
         String(i + 1),
-        badgeX + 9,
-        badgeY + 4,
+        badgeX + 8,
+        badgeY + 3,
         { align: 'center' }
       );
 
-      doc.font('Geist Regular').fontSize(9).fillColor(textColor).text(
+      doc.font('Geist Regular').fontSize(8).fillColor('#000000').text(
         item,
         startX + indent,
-        y - 2,
-        { width: itemWidth - 20, lineGap: 2 }
+        y - 1,
+        { width: itemWidth - 16, lineGap: 1.5 }
       );
     } else {
       if (isFirst) {
-        drawCheck(doc, startX + 7, y + 5, titleColor, 8);
+        drawCheck(doc, startX + 6, y + 4, 7);
       } else {
-        doc.circle(startX + 7, y + 6, bulletR).fill(titleColor);
+        doc.circle(startX + 6, y + 5, 4).fill('#000000');
       }
 
-      doc.font('Geist Regular').fontSize(9).fillColor(textColor).text(
+      doc.font('Geist Regular').fontSize(8).fillColor('#000000').text(
         item,
         startX + indent,
-        y - 2,
-        { width: itemWidth, lineGap: 2 }
+        y - 1,
+        { width: itemWidth, lineGap: 1.5 }
       );
     }
 
-    y += doc.heightOfString(item, { width: itemWidth, fontSize: 9, lineGap: 2 }) + 8;
+    y += doc.heightOfString(item, { width: itemWidth, fontSize: 8, lineGap: 1.5 }) + 6;
   }
 
   if (hasMore) {
-    doc.font('Geist Medium').fontSize(8).fillColor('#64748b').text(
+    doc.font('Geist Medium').fontSize(7).fillColor('#555555').text(
       `+${items.length - maxItemsToShow} more...`,
       startX + indent,
       y
     );
-    y += 12;
+    y += 10;
   }
 
   return y;
 }
 
-module.exports = { generatePDFReport, scoreColor, gradeColor, truncate };
+module.exports = { generatePDFReport, truncate };

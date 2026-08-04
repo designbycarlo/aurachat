@@ -135,8 +135,8 @@
       .logo { width: 36px; height: 36px; }
       .brand-name { height: 42px; }
       h1 { font-size: 12px; }
-      .score { width: 80px; height: 80px; font-size: 28px; }
-      .grade { font-size: 18px; }
+      .score-row { flex-direction: column; align-items: center; gap: 12px; }
+      .summary-col { text-align: center; }
     }
     form {
       display: flex;
@@ -180,9 +180,20 @@
     }
     .score-row {
       display: flex;
-      align-items: center;
-      gap: 20px;
+      align-items: flex-start;
+      gap: 24px;
       flex-wrap: wrap;
+    }
+    .score-col {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .summary-col {
+      flex: 1;
+      min-width: 200px;
     }
     .score {
       width: 96px;
@@ -198,10 +209,12 @@
     .grade {
       font-size: 22px;
       font-weight: 700;
+      text-align: center;
     }
     .summary {
       color: var(--muted);
       margin-top: 4px;
+      line-height: 1.5;
     }
     .lists {
       display: grid;
@@ -321,9 +334,11 @@
       <div class="error" id="error"></div>
       <div class="result" id="result">
         <div class="score-row">
-          <div class="score" id="scoreCircle">--</div>
-          <div>
+          <div class="score-col">
+            <div class="score" id="scoreCircle">--</div>
             <div class="grade" id="gradeText">--</div>
+          </div>
+          <div class="summary-col">
             <div class="summary" id="summaryText"></div>
           </div>
         </div>
@@ -344,6 +359,9 @@
         <div class="pdf-btn-container">
           <button type="button" class="pdf-btn" id="pdfBtn">
             <span id="pdfBtnText">Download PDF Report</span>
+          </button>
+          <button type="button" class="pdf-btn" id="csvBtn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+            <span id="csvBtnText">Download CSV Report</span>
           </button>
         </div>
       </div>
@@ -386,6 +404,7 @@
     const errorEl = document.getElementById('error');
     const result = document.getElementById('result');
     const pdfBtn = document.getElementById('pdfBtn');
+    const csvBtn = document.getElementById('csvBtn');
 
     let lastResult = null;
 
@@ -516,6 +535,35 @@
       } finally {
         pdfBtn.disabled = false;
         pdfBtn.querySelector('#pdfBtnText').textContent = 'Download PDF Report';
+      }
+    });
+
+    csvBtn.addEventListener('click', async () => {
+      if (!lastResult) return;
+      csvBtn.disabled = true;
+      csvBtn.querySelector('#csvBtnText').textContent = 'Generating CSV...';
+      try {
+        const res = await fetch('/api/report/csv', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(lastResult),
+        });
+        if (!res.ok) throw new Error('Failed to generate CSV');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aurachat-seo-report-${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+      } finally {
+        csvBtn.disabled = false;
+        csvBtn.querySelector('#csvBtnText').textContent = 'Download CSV Report';
       }
     });
   </script>
