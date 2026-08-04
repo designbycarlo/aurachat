@@ -46,6 +46,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet" />
 
+  <!-- D3.js (dashboard charts) -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" defer></script>
+
   <style>
     @font-face {
       font-family: 'Geist';
@@ -91,49 +94,245 @@
       color: var(--text);
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 24px;
+      padding: 0 24px 24px;
     }
     .container {
       width: 100%;
       max-width: 920px;
+    }
+
+    /* ---------- Top navigation ---------- */
+    .topnav {
+      width: 100%;
+      max-width: 1080px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 16px 0;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: auto;
+      min-width: 0;
+    }
+    .nav-brand img {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+    .nav-brand svg {
+      height: 52px;
+      width: auto;
+      flex-shrink: 0;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--widget);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px;
+    }
+    .nav-link {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 16px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: color 0.2s ease, background 0.2s ease;
+    }
+    .nav-link:hover { color: var(--text); }
+    .nav-link.active {
+      background: rgba(56,189,248,0.14);
+      color: var(--accent);
+    }
+    .nav-auth {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      border: 1px solid var(--line-strong);
+      background: var(--widget);
+      color: var(--text);
+      padding: 9px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    .nav-btn:hover { border-color: rgba(56,189,248,0.4); background: var(--widget-2); }
+    .nav-btn.primary {
+      background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+      border-color: transparent;
+      color: #ffffff;
+    }
+    .nav-btn.primary:hover { box-shadow: 0 8px 24px rgba(99,102,241,0.3); }
+    .nav-user {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      max-width: 180px;
+    }
+    .nav-user .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .nav-user .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 620px) {
+      .nav-brand svg { display: none; }
+      .nav-user .email { display: none; }
+      .nav-link { padding: 8px 12px; font-size: 12px; }
+    }
+
+    /* ---------- Views ---------- */
+    .view { display: none; width: 100%; max-width: 920px; }
+    .view.active { display: block; }
+
+    /* ---------- Auth modal ---------- */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(2, 6, 23, 0.7);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay[hidden] { display: none; }
+    .modal {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      box-shadow: 0 24px 60px rgba(2, 6, 23, 0.6);
+      padding: 26px;
+      animation: modalIn 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes modalIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.98); }
+      to { opacity: 1; transform: none; }
+    }
+    .modal-close {
+      float: right;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .modal-close:hover { color: var(--text); }
+    .modal h2 { margin: 4px 0 4px; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    .modal .modal-sub { margin: 0 0 18px; font-size: 13px; color: var(--muted); }
+    .modal-tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--widget-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 16px;
+    }
+    .modal-tab {
+      flex: 1;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 0;
+      border-radius: 9px;
+      cursor: pointer;
+    }
+    .modal-tab.active { background: var(--widget); color: var(--text); box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset; }
+    .modal form { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+    .modal .field { display: flex; flex-direction: column; gap: 6px; }
+    .modal .field label { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.02em; }
+    .modal input {
+      padding: 12px 14px;
+      border-radius: 11px;
+      border: 1px solid var(--line-strong);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      width: 100%;
+    }
+    .modal input:focus { border-color: var(--accent); }
+    .modal .auth-submit {
+      margin-top: 4px;
+      width: 100%;
+      background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 11px;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .modal .auth-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+    .modal .auth-err { display: none; padding: 10px 12px; border-radius: 10px; background: rgba(248,113,113,0.14); color: var(--danger); font-size: 13px; }
+    .modal .auth-err.show { display: block; }
+
+    /* ---------- Scroll-reveal widgets ---------- */
+    .widget {
+      position: relative;
+      grid-column: span 12;
+      background: linear-gradient(180deg, var(--widget) 0%, var(--widget-2) 100%);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(16px);
+      transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1), transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+      transition-delay: calc(var(--i, 0) * 55ms);
+    }
+    .widget.in { opacity: 1; transform: none; }
+    .reveal {
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      .widget, .reveal { opacity: 1; transform: none; transition: none; }
     }
     .card {
       background: var(--card);
       border-radius: 16px;
       padding: 32px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-    }
-    .header {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .logo {
-      width: 44px;
-      height: 44px;
-      border-radius: 12px;
-      flex-shrink: 0;
-    }
-    .brand-name {
-      height: 52px;
-      width: auto;
-      flex-shrink: 0;
-    }
-    h1 {
-      margin: 0;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
     }
     .subtitle {
       color: var(--muted);
@@ -142,9 +341,6 @@
     @media (max-width: 480px) {
       body { padding: 16px; }
       .card { padding: 20px; }
-      .logo { width: 36px; height: 36px; }
-      .brand-name { height: 42px; }
-      h1 { font-size: 12px; }
     }
     form {
       display: flex;
@@ -207,8 +403,6 @@
       padding: 16px;
       box-shadow: var(--shadow);
       overflow: hidden;
-      animation: widgetIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
-      animation-delay: calc(var(--i, 0) * 55ms);
       transition: border-color 0.2s ease, transform 0.2s ease;
     }
     .widget::before {
@@ -221,10 +415,6 @@
     }
     .widget:hover {
       border-color: var(--line-strong);
-    }
-    @keyframes widgetIn {
-      from { opacity: 0; transform: translateY(10px) scale(0.995); }
-      to { opacity: 1; transform: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       .widget { animation: none; }
@@ -600,17 +790,181 @@
       .w-list li { font-size: 12.5px; }
     }
 
+    /* ---------- Dashboard ---------- */
+    .dash-intro { margin-bottom: 18px; }
+    .dash-intro h2 { margin: 0 0 6px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .dash-intro p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+    .dash-required {
+      text-align: center;
+      padding: 48px 24px;
+      background: var(--widget);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .dash-required h2 { margin: 0 0 8px; font-size: 20px; }
+    .dash-required p { margin: 0 0 20px; color: var(--muted); font-size: 14px; }
+    .dash-hero {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .dash-score { text-align: center; }
+    .dash-score .eyebrow { margin-bottom: 4px; }
+    .dash-score-value {
+      display: block;
+      font-size: 46px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+    }
+    .dash-score.accent .dash-score-value { color: var(--accent); }
+    .dash-score-label {
+      display: block;
+      margin-top: 2px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .dash-citations {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    .dash-widget { grid-column: 1 / -1; }
+    .dash-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 6px;
+    }
+    .seg {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--widget-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 4px;
+    }
+    .seg-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: color 0.2s ease, background 0.2s ease;
+      white-space: nowrap;
+    }
+    .seg-btn:hover { color: var(--text); }
+    .seg-btn.active {
+      background: rgba(56,189,248,0.14);
+      color: var(--accent);
+    }
+    .chart-wrap { position: relative; width: 100%; }
+    #aeoChart { width: 100%; }
+    .chart-empty {
+      display: none;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      padding: 40px 0;
+    }
+    .dash-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .dash-stat {
+      background: rgba(148,163,184,0.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .dash-stat .eyebrow { font-size: 9.5px; }
+    .dash-stat-value {
+      display: block;
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .dash-stat.accent .dash-stat-value { color: var(--accent); }
+    .d3-note {
+      display: block;
+      margin-top: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    /* Saved reports */
+    .saved-reports { grid-column: 1 / -1; }
+    .saved-empty { color: var(--muted); font-size: 13.5px; font-style: italic; }
+    .saved-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+    .saved-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      background: rgba(148,163,184,0.06);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
+    }
+    .saved-item .saved-score {
+      flex-shrink: 0;
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: 17px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      background: rgba(56,189,248,0.12);
+      color: var(--accent);
+    }
+    .saved-item .saved-meta { min-width: 0; flex: 1; }
+    .saved-item .saved-url {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .saved-item .saved-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .saved-item .saved-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .saved-item .pdf-btn { padding: 8px 12px; font-size: 12.5px; }
+    @media (max-width: 900px) {
+      .dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .dash-hero { grid-template-columns: 1fr; }
+      .dash-toolbar { flex-direction: column; align-items: stretch; }
+      .seg { justify-content: center; }
+      .saved-item { flex-wrap: wrap; }
+    }
+
     /* Print: mirror the PDF widget layout on a single sheet */
     @media print {
       @page { size: letter portrait; margin: 11mm; }
       body { background: #ffffff; color: #0f172a; display: block; padding: 0; }
       .card { background: #ffffff; box-shadow: none; padding: 0; }
       .container { max-width: none; }
-      form, .loading, .error, .w-actions, .subtitle { display: none !important; }
-      .header { margin-bottom: 4px; }
-      .logo { width: 26px; height: 26px; }
-      .brand-name { height: 30px; }
-      h1 { font-size: 9px; color: #64748b; }
+      form, .loading, .error, .w-actions, .subtitle, .topnav, .modal-overlay { display: none !important; }
+      .view.active { display: block !important; }
+      .widget, .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
       .result { margin-top: 8px; }
       .widgets { gap: 7px; }
       .widget {
@@ -683,15 +1037,29 @@
   </style>
 </head>
 <body>
+  <nav class="topnav" aria-label="Primary">
+    <div class="nav-brand">
+      <img src="/favicon.svg" alt="AuraChat logo" />
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 200" role="img" aria-label="aurachat"><defs><linearGradient id="dotGradientNav" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8ee3ff"/><stop offset="100%" stop-color="#6457ff"/></linearGradient><filter id="glowEffectNav" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="blur"/><feComposite in="SourceGraphic" in2="blur"/></filter></defs><g transform="translate(40 130)"><text style="font-family:'Poppins',sans-serif;font-size:72px;font-weight:600;fill:#fff;letter-spacing:-2.5px">aurachat</text><circle cx="342" cy="-12" r="12" fill="url(#dotGradientNav)" filter="url(#glowEffectNav)"/></g></svg>
+    </div>
+    <div class="nav-links">
+      <button type="button" class="nav-link active" id="navAnalyzer">Analyzer</button>
+      <button type="button" class="nav-link" id="navDashboard">Dashboard</button>
+    </div>
+    <div class="nav-auth">
+      <span class="nav-user" id="navUser" style="display:none">
+        <span class="avatar" id="navAvatar"></span>
+        <span class="email" id="navEmail"></span>
+      </span>
+      <button type="button" class="nav-btn" id="authBtn">Sign in</button>
+      <button type="button" class="nav-btn" id="logoutBtn" style="display:none">Log out</button>
+    </div>
+  </nav>
+
+  <!-- Analyzer view -->
+  <section class="view active" id="viewAnalyzer">
   <div class="container">
     <div class="card">
-      <div class="header">
-        <div class="brand">
-          <img src="/favicon.svg" alt="AuraChat logo" class="logo" />
-          <svg class="brand-name" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 200" role="img" aria-label="aurachat"><defs><linearGradient id="dotGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#8ee3ff"/><stop offset="100%" stop-color="#6457ff"/></linearGradient><filter id="glowEffect" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="blur"/><feComposite in="SourceGraphic" in2="blur"/></filter></defs><g transform="translate(40 130)"><text style="font-family:'Poppins',sans-serif;font-size:72px;font-weight:600;fill:#fff;letter-spacing:-2.5px">aurachat</text><circle cx="342" cy="-12" r="12" fill="url(#dotGradient)" filter="url(#glowEffect)"/></g></svg>
-        </div>
-        <h1>AI SEO / AEO Analyzer</h1>
-      </div>
       <p class="subtitle">Get a personalized report on how optimized your site is for AI-driven discovery.</p>
       <form id="analyzeForm">
         <input type="url" id="urlInput" placeholder="https://example.com" required />
@@ -789,10 +1157,57 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
                 <span id="csvBtnText">CSV Data</span>
               </button>
+              <button type="button" class="pdf-btn secondary" id="saveReportBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+                <span id="saveReportBtnText">Save report</span>
+              </button>
             </div>
           </section>
         </div>
       </div>
+    </div>
+  </div>
+  </section>
+
+  <!-- Dashboard view -->
+  <section class="view" id="viewDashboard">
+    <div id="dashContent"></div>
+  </section>
+
+  <!-- Auth modal -->
+  <div class="modal-overlay" id="authModal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <button type="button" class="modal-close" id="authClose" aria-label="Close">&#215;</button>
+      <h2 id="authTitle">Welcome back</h2>
+      <p class="modal-sub" id="authSub">Log in to save your personalized reports.</p>
+      <div class="modal-tabs">
+        <button type="button" class="modal-tab active" data-tab="login">Log in</button>
+        <button type="button" class="modal-tab" data-tab="signup">Sign up</button>
+      </div>
+      <div class="auth-err" id="authErr"></div>
+      <form id="loginForm">
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input type="email" id="loginEmail" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="auth-submit" id="loginSubmit">Log in</button>
+      </form>
+      <form id="signupForm" hidden>
+        <div class="field">
+          <label for="signupEmail">Email</label>
+          <input type="email" id="signupEmail" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" autocomplete="new-password" minlength="8" required />
+          <span class="d3-note">At least 8 characters.</span>
+        </div>
+        <button type="submit" class="auth-submit" id="signupSubmit">Create account</button>
+      </form>
     </div>
   </div>
   <script>
@@ -1064,6 +1479,8 @@
           void widget.offsetWidth;
           widget.style.animation = '';
         });
+        // Re-observe new widgets for scroll-reveal
+        if (window.reobserveWidgets) window.reobserveWidgets();
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
@@ -1131,6 +1548,674 @@
         csvBtn.querySelector('#csvBtnText').textContent = 'CSV Data';
       }
     });
+
+    /* ================================================================
+       SCROLL-REVEAL — IntersectionObserver for widget entrance animations
+       ================================================================ */
+    (function initScrollReveal() {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const targets = document.querySelectorAll('.widget, .reveal');
+      if (!targets.length) return;
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+      targets.forEach((el) => observer.observe(el));
+
+      /* Re-observe new widgets added after analysis */
+      window.reobserveWidgets = function () {
+        document.querySelectorAll('.widget:not(.in), .reveal:not(.in)').forEach((el) => {
+          observer.observe(el);
+        });
+      };
+    })();
+
+    /* ================================================================
+       AUTH — Login / Signup / Session management
+       ================================================================ */
+    const authModal = document.getElementById('authModal');
+    const authClose = document.getElementById('authClose');
+    const authErr = document.getElementById('authErr');
+    const loginForm = document.getElementById('loginForm');
+    const signupForm = document.getElementById('signupForm');
+    const loginSubmit = document.getElementById('loginSubmit');
+    const signupSubmit = document.getElementById('signupSubmit');
+    const authBtnEl = document.getElementById('authBtn');
+    const logoutBtnEl = document.getElementById('logoutBtn');
+    const navUserEl = document.getElementById('navUser');
+    const navAvatar = document.getElementById('navAvatar');
+    const navEmail = document.getElementById('navEmail');
+
+    let authToken = localStorage.getItem('aura_token') || null;
+    let currentUser = null;
+
+    function showAuthModal() {
+      authErr.classList.remove('show');
+      authErr.textContent = '';
+      loginForm.reset();
+      signupForm.reset();
+      authModal.hidden = false;
+      switchAuthTab('login');
+    }
+
+    function hideAuthModal() {
+      authModal.hidden = true;
+    }
+
+    function switchAuthTab(tab) {
+      const tabs = authModal.querySelectorAll('.modal-tab');
+      tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
+      if (tab === 'login') {
+        loginForm.hidden = false;
+        signupForm.hidden = true;
+        document.getElementById('authTitle').textContent = 'Welcome back';
+        document.getElementById('authSub').textContent = 'Log in to save your personalized reports.';
+      } else {
+        loginForm.hidden = true;
+        signupForm.hidden = false;
+        document.getElementById('authTitle').textContent = 'Create account';
+        document.getElementById('authSub').textContent = 'Sign up to save and track your reports.';
+      }
+    }
+
+    function showAuthError(msg) {
+      authErr.textContent = msg;
+      authErr.classList.add('show');
+    }
+
+    function updateNavState() {
+      if (currentUser) {
+        authBtnEl.style.display = 'none';
+        logoutBtnEl.style.display = '';
+        navUserEl.style.display = '';
+        navAvatar.textContent = currentUser.email.charAt(0).toUpperCase();
+        navEmail.textContent = currentUser.email;
+      } else {
+        authBtnEl.style.display = '';
+        logoutBtnEl.style.display = 'none';
+        navUserEl.style.display = 'none';
+      }
+    }
+
+    async function checkSession() {
+      if (!authToken) { updateNavState(); return; }
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        currentUser = data.user;
+      } catch {
+        authToken = null;
+        localStorage.removeItem('aura_token');
+      }
+      updateNavState();
+    }
+
+    authBtnEl.addEventListener('click', showAuthModal);
+    authClose.addEventListener('click', hideAuthModal);
+    authModal.addEventListener('click', (e) => { if (e.target === authModal) hideAuthModal(); });
+
+    authModal.querySelectorAll('.modal-tab').forEach((tab) => {
+      tab.addEventListener('click', () => switchAuthTab(tab.dataset.tab));
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginSubmit.disabled = true;
+      authErr.classList.remove('show');
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('loginEmail').value.trim(),
+            password: document.getElementById('loginPassword').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Login failed');
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('aura_token', authToken);
+        updateNavState();
+        hideAuthModal();
+        refreshDashboardIfActive();
+      } catch (err) {
+        showAuthError(err.message);
+      } finally {
+        loginSubmit.disabled = false;
+      }
+    });
+
+    signupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      signupSubmit.disabled = true;
+      authErr.classList.remove('show');
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('signupEmail').value.trim(),
+            password: document.getElementById('signupPassword').value
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Signup failed');
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('aura_token', authToken);
+        updateNavState();
+        hideAuthModal();
+        refreshDashboardIfActive();
+      } catch (err) {
+        showAuthError(err.message);
+      } finally {
+        signupSubmit.disabled = false;
+      }
+    });
+
+    logoutBtnEl.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+      } catch { /* ignore */ }
+      authToken = null;
+      currentUser = null;
+      localStorage.removeItem('aura_token');
+      updateNavState();
+      refreshDashboardIfActive();
+    });
+
+    checkSession();
+
+    /* ================================================================
+       SAVE REPORT
+       ================================================================ */
+    const saveReportBtn = document.getElementById('saveReportBtn');
+    const saveReportBtnText = document.getElementById('saveReportBtnText');
+
+    saveReportBtn.addEventListener('click', async () => {
+      if (!lastResult) return;
+      if (!currentUser) { showAuthModal(); return; }
+      saveReportBtn.disabled = true;
+      saveReportBtnText.textContent = 'Saving...';
+      try {
+        const res = await fetch('/api/reports', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + authToken
+          },
+          body: JSON.stringify(lastResult)
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Save failed');
+        }
+        saveReportBtnText.textContent = 'Saved!';
+        setTimeout(() => { saveReportBtnText.textContent = 'Save report'; }, 1800);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+        saveReportBtnText.textContent = 'Save report';
+      } finally {
+        saveReportBtn.disabled = false;
+      }
+    });
+
+    /* ================================================================
+       DASHBOARD
+       ================================================================ */
+    const navAnalyzer = document.getElementById('navAnalyzer');
+    const navDashboard = document.getElementById('navDashboard');
+    const viewAnalyzer = document.getElementById('viewAnalyzer');
+    const viewDashboard = document.getElementById('viewDashboard');
+    const dashContent = document.getElementById('dashContent');
+
+    let currentView = 'analyzer';
+    let dashData = null;
+    let dashViewMode = 'seo';
+    let dashTimeRange = 30;
+
+    function switchView(view) {
+      currentView = view;
+      navAnalyzer.classList.toggle('active', view === 'analyzer');
+      navDashboard.classList.toggle('active', view === 'dashboard');
+      viewAnalyzer.classList.toggle('active', view === 'analyzer');
+      viewDashboard.classList.toggle('active', view === 'dashboard');
+      if (view === 'dashboard') renderDashboard();
+    }
+
+    navAnalyzer.addEventListener('click', () => switchView('analyzer'));
+    navDashboard.addEventListener('click', () => switchView('dashboard'));
+
+    function refreshDashboardIfActive() {
+      if (currentView === 'dashboard') renderDashboard();
+    }
+
+    async function renderDashboard() {
+      if (!currentUser) {
+        dashContent.innerHTML = `
+          <div class="card">
+            <div class="dash-intro">
+              <h2>Dashboard</h2>
+              <p>Compare traditional SEO metrics with Answer Engine Optimization performance across your saved reports.</p>
+            </div>
+            <div class="dash-required">
+              <h2>Sign in required</h2>
+              <p>Log in to view your personalized dashboard and saved reports.</p>
+              <button type="button" class="pdf-btn" id="dashSignIn">Sign in</button>
+            </div>
+          </div>`;
+        document.getElementById('dashSignIn').addEventListener('click', showAuthModal);
+        return;
+      }
+
+      dashContent.innerHTML = `
+        <div class="card">
+          <div class="dash-intro">
+            <h2>Dashboard</h2>
+            <p>Compare traditional SEO metrics with Answer Engine Optimization performance across your saved reports.</p>
+          </div>
+          <div class="dash-hero">
+            <div class="dash-score">
+              <span class="eyebrow">Average SEO Score</span>
+              <span class="dash-score-value" id="dashAvgScore">--</span>
+              <span class="dash-score-label">Across all reports</span>
+            </div>
+            <div>
+              <span class="eyebrow">Top AI Citations</span>
+              <div class="dash-citations" id="dashCitations"></div>
+            </div>
+          </div>
+          <div class="dash-widget dash-widget">
+            <div class="dash-toolbar">
+              <div class="seg" id="viewToggle">
+                <button class="seg-btn active" data-view="seo">Traditional SEO</button>
+                <button class="seg-btn" data-view="aeo">Answer Engines</button>
+              </div>
+              <div class="seg" id="timeToggle">
+                <button class="seg-btn active" data-range="30">Last 30 Days</button>
+                <button class="seg-btn" data-range="90">Last Quarter</button>
+              </div>
+            </div>
+            <div class="chart-wrap">
+              <svg id="aeoChart"></svg>
+              <div class="chart-empty" id="chartEmpty" style="display:none">Analyze and save some pages to see trends</div>
+            </div>
+          </div>
+          <div class="dash-stats" id="dashStats"></div>
+          <div class="dash-widget saved-reports">
+            <span class="eyebrow">Saved Reports</span>
+            <div class="divider"></div>
+            <div id="savedList"></div>
+          </div>
+        </div>`;
+
+      await loadDashboardData();
+      bindDashboardEvents();
+    }
+
+    async function loadDashboardData() {
+      try {
+        const res = await fetch('/api/reports', {
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        dashData = data.reports || [];
+      } catch {
+        dashData = [];
+      }
+      populateDashboard();
+    }
+
+    function populateDashboard() {
+      const reports = dashData;
+      const avgEl = document.getElementById('dashAvgScore');
+      const citEl = document.getElementById('dashCitations');
+      const statsEl = document.getElementById('dashStats');
+      const savedEl = document.getElementById('savedList');
+
+      if (!reports.length) {
+        if (avgEl) avgEl.textContent = '--';
+        if (citEl) citEl.innerHTML = '<span class="empty-note">No data yet</span>';
+        if (statsEl) statsEl.innerHTML = '';
+        if (savedEl) savedEl.innerHTML = '<p class="empty-note">No saved reports yet. Analyze a page and save it to get started.</p>';
+        drawChart([], dashViewMode);
+        return;
+      }
+
+      const scores = reports.map((r) => r.report?.score ?? 0).filter(Boolean);
+      const avgScore = scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      if (avgEl) avgEl.textContent = avgScore || '--';
+
+      /* Gather citation sources from signals */
+      const citationSources = ['Perplexity', 'ChatGPT', 'Google SGE', 'Claude', 'Gemini'];
+      const citCounts = {};
+      citationSources.forEach((s) => { citCounts[s] = 0; });
+      reports.forEach((r) => {
+        const sig = r.report?.signals || {};
+        if (sig.hasAIAgentMarkers) citCounts['ChatGPT']++;
+        if (sig.hasConversationalContent) citCounts['Perplexity']++;
+        if (sig.hasSchemaOrg) citCounts['Google SGE']++;
+        if (sig.hasFAQ || sig.hasHowTo) citCounts['Claude']++;
+        if (sig.hasJsonLd) citCounts['Gemini']++;
+      });
+      if (citEl) {
+        citEl.innerHTML = '';
+        Object.entries(citCounts)
+          .filter(([, c]) => c > 0)
+          .sort((a, b) => b[1] - a[1])
+          .forEach(([name, count]) => {
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.textContent = name + ' (' + count + ')';
+            citEl.appendChild(chip);
+          });
+        if (!citEl.children.length) {
+          citEl.innerHTML = '<span class="empty-note">No citation data yet</span>';
+        }
+      }
+
+      /* Stats */
+      const totalWords = reports.reduce((s, r) => s + (r.report?.signals?.wordCount || 0), 0);
+      const avgWords = scores.length ? Math.round(totalWords / scores.length) : 0;
+      const avgCoverage = scores.length
+        ? Math.round(reports.reduce((s, r) => {
+            const sig = r.report?.signals || {};
+            const checks = [
+              !!sig.title, !!sig.metaDescription, !!sig.canonical,
+              !!(sig.ogTitle || sig.ogDescription), !!sig.hasJsonLd,
+              Array.isArray(sig.headings) && sig.headings.length > 0,
+              !!(sig.hasFAQ || sig.hasHowTo), !!sig.hasConversationalContent,
+              !!sig.hasSchemaOrg, !!sig.hasAIAgentMarkers
+            ];
+            return s + (checks.filter(Boolean).length / checks.length) * 100;
+          }, 0) / scores.length)
+        : 0;
+      const avgHeadings = scores.length
+        ? Math.round(reports.reduce((s, r) => s + (Array.isArray(r.report?.signals?.headings) ? r.report.signals.headings.length : 0), 0) / scores.length)
+        : 0;
+
+      if (statsEl) {
+        statsEl.innerHTML = `
+          <div class="dash-stat"><span class="eyebrow">Total Reports</span><span class="dash-stat-value">${reports.length}</span></div>
+          <div class="dash-stat accent"><span class="eyebrow">Avg Word Count</span><span class="dash-stat-value">${avgWords.toLocaleString('en-US')}</span></div>
+          <div class="dash-stat"><span class="eyebrow">Avg Coverage</span><span class="dash-stat-value">${Math.round(avgCoverage)}%</span></div>
+          <div class="dash-stat"><span class="eyebrow">Avg Headings</span><span class="dash-stat-value">${avgHeadings}</span></div>`;
+      }
+
+      /* Saved reports list */
+      if (savedEl) {
+        savedEl.innerHTML = '';
+        if (!reports.length) {
+          savedEl.innerHTML = '<p class="empty-note">No saved reports yet.</p>';
+        } else {
+          const ul = document.createElement('div');
+          ul.className = 'saved-list';
+          reports.forEach((r) => {
+            const report = r.report || {};
+            const sig = report.signals || {};
+            const score = report.score ?? 0;
+            const band = scoreBand(score);
+            const item = document.createElement('div');
+            item.className = 'saved-item';
+            const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+            item.innerHTML = `
+              <div class="saved-score" style="background:${band.soft};color:${band.color}">${score}</div>
+              <div class="saved-meta">
+                <span class="saved-url">${sig.url || sig.title || 'Untitled'}</span>
+                <span class="saved-date">${date}</span>
+              </div>
+              <div class="saved-actions">
+                <button type="button" class="pdf-btn secondary saved-view" data-id="${r.id}">View</button>
+                <button type="button" class="pdf-btn secondary saved-delete" data-id="${r.id}">Delete</button>
+              </div>`;
+            ul.appendChild(item);
+          });
+          savedEl.appendChild(ul);
+
+          ul.querySelectorAll('.saved-view').forEach((btn) => {
+            btn.addEventListener('click', () => loadSavedReport(btn.dataset.id));
+          });
+          ul.querySelectorAll('.saved-delete').forEach((btn) => {
+            btn.addEventListener('click', () => deleteSavedReport(btn.dataset.id));
+          });
+        }
+      }
+
+      drawChart(reports, dashViewMode);
+    }
+
+    async function loadSavedReport(id) {
+      try {
+        const res = await fetch('/api/reports/' + id, {
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        lastResult = data.report;
+        renderReport(data.report);
+        result.classList.add('visible');
+        result.querySelectorAll('.widget').forEach((w) => {
+          w.style.animation = 'none';
+          void w.offsetWidth;
+          w.style.animation = '';
+        });
+        switchView('analyzer');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch {
+        errorEl.textContent = 'Failed to load report';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function deleteSavedReport(id) {
+      try {
+        await fetch('/api/reports/' + id, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + authToken }
+        });
+        await loadDashboardData();
+      } catch { /* ignore */ }
+    }
+
+    function bindDashboardEvents() {
+      document.querySelectorAll('#viewToggle .seg-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#viewToggle .seg-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          dashViewMode = btn.dataset.view;
+          if (dashData) drawChart(dashData, dashViewMode);
+        });
+      });
+      document.querySelectorAll('#timeToggle .seg-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('#timeToggle .seg-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          dashTimeRange = Number(btn.dataset.range);
+          if (dashData) drawChart(dashData, dashViewMode);
+        });
+      });
+    }
+
+    /* ================================================================
+       D3.js CHART — SEO vs AEO comparison bar chart
+       ================================================================ */
+    function drawChart(reports, mode) {
+      const svgEl = document.getElementById('aeoChart');
+      const emptyEl = document.getElementById('chartEmpty');
+      if (!svgEl) return;
+
+      if (typeof d3 === 'undefined') {
+        if (emptyEl) emptyEl.style.display = '';
+        return;
+      }
+
+      /* Filter by time range */
+      const cutoff = Date.now() - dashTimeRange * 24 * 60 * 60 * 1000;
+      const filtered = reports.filter((r) => {
+        if (!r.createdAt) return true;
+        return new Date(r.createdAt).getTime() >= cutoff;
+      });
+
+      if (!filtered.length) {
+        d3.select(svgEl).selectAll('*').remove();
+        if (emptyEl) emptyEl.style.display = '';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+
+      /* Build dataset */
+      let dataset;
+      if (mode === 'seo') {
+        const avgWords = avg(filtered, (r) => r.report?.signals?.wordCount || 0);
+        const avgHead = avg(filtered, (r) => Array.isArray(r.report?.signals?.headings) ? r.report.signals.headings.length : 0);
+        const avgJson = avg(filtered, (r) => r.report?.signals?.jsonLdCount || 0);
+        const avgCov = avg(filtered, (r) => {
+          const s = r.report?.signals || {};
+          const checks = [!!s.title, !!s.metaDescription, !!s.canonical, !!(s.ogTitle || s.ogDescription), !!s.hasJsonLd, Array.isArray(s.headings) && s.headings.length > 0, !!(s.hasFAQ || s.hasHowTo), !!s.hasConversationalContent, !!s.hasSchemaOrg, !!s.hasAIAgentMarkers];
+          return (checks.filter(Boolean).length / checks.length) * 100;
+        });
+        dataset = [
+          { label: 'Word Count', value: avgWords, max: 2000 },
+          { label: 'Headings', value: avgHead, max: 30 },
+          { label: 'JSON-LD', value: avgJson, max: 10 },
+          { label: 'Coverage %', value: avgCov, max: 100 }
+        ];
+      } else {
+        const avgConv = avg(filtered, (r) => r.report?.signals?.hasConversationalContent ? 1 : 0) * 100;
+        const avgFaq = avg(filtered, (r) => (r.report?.signals?.hasFAQ || r.report?.signals?.hasHowTo) ? 1 : 0) * 100;
+        const avgSchema = avg(filtered, (r) => r.report?.signals?.hasSchemaOrg ? 1 : 0) * 100;
+        const avgAi = avg(filtered, (r) => r.report?.signals?.hasAIAgentMarkers ? 1 : 0) * 100;
+        const avgScore = avg(filtered, (r) => r.report?.score || 0);
+        dataset = [
+          { label: 'Conversational', value: Math.round(avgConv), max: 100 },
+          { label: 'FAQ / How-to', value: Math.round(avgFaq), max: 100 },
+          { label: 'Schema.org', value: Math.round(avgSchema), max: 100 },
+          { label: 'AI Markers', value: Math.round(avgAi), max: 100 },
+          { label: 'AI Score', value: Math.round(avgScore), max: 100 }
+        ];
+      }
+
+      /* Dimensions */
+      const margin = { top: 20, right: 16, bottom: 40, left: 50 };
+      const width = svgEl.parentElement.clientWidth - margin.left - margin.right;
+      const height = 220;
+
+      d3.select(svgEl).selectAll('*').remove();
+      const svg = d3.select(svgEl)
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom);
+      const g = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+      /* Scales */
+      const x = d3.scaleBand()
+        .domain(dataset.map((d) => d.label))
+        .range([0, width])
+        .padding(0.35);
+
+      const yMax = d3.max(dataset, (d) => d.max) || 100;
+      const y = d3.scaleLinear().domain([0, yMax]).nice().range([height, 0]);
+
+      /* Grid lines */
+      g.append('g')
+        .attr('class', 'grid')
+        .call(d3.axisLeft(y).ticks(5).tickSize(-width).tickFormat(''))
+        .selectAll('line')
+        .attr('stroke', 'rgba(148,163,184,0.10)')
+        .attr('stroke-dasharray', '3,3');
+      g.select('.grid .domain').remove();
+
+      /* Axes */
+      g.append('g')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(x).tickSize(0))
+        .selectAll('text')
+        .attr('fill', '#94a3b8')
+        .attr('font-size', '11px')
+        .attr('font-family', 'Geist, sans-serif')
+        .attr('dy', '1.2em');
+      g.select('.domain').attr('stroke', 'rgba(148,163,184,0.16)');
+
+      g.append('g')
+        .call(d3.axisLeft(y).ticks(5).tickSize(0).tickFormat((d) => d >= 1000 ? (d / 1000).toFixed(1) + 'k' : d))
+        .selectAll('text')
+        .attr('fill', '#94a3b8')
+        .attr('font-size', '10px')
+        .attr('font-family', 'Geist, sans-serif');
+
+      /* Bars */
+      const accentColor = '#38bdf8';
+      const mutedColor = 'rgba(148,163,184,0.18)';
+
+      g.selectAll('.bar-bg')
+        .data(dataset)
+        .join('rect')
+        .attr('class', 'bar-bg')
+        .attr('x', (d) => x(d.label))
+        .attr('y', 0)
+        .attr('width', x.bandwidth())
+        .attr('height', height)
+        .attr('fill', mutedColor)
+        .attr('rx', 6);
+
+      g.selectAll('.bar')
+        .data(dataset)
+        .join('rect')
+        .attr('class', 'bar')
+        .attr('x', (d) => x(d.label))
+        .attr('y', height)
+        .attr('width', x.bandwidth())
+        .attr('height', 0)
+        .attr('fill', accentColor)
+        .attr('rx', 6)
+        .attr('opacity', 0.85)
+        .transition()
+        .duration(700)
+        .ease(d3.easeCubicOut)
+        .attr('y', (d) => y(Math.min(d.value, d.max)))
+        .attr('height', (d) => height - y(Math.min(d.value, d.max)));
+
+      /* Value labels */
+      g.selectAll('.bar-label')
+        .data(dataset)
+        .join('text')
+        .attr('class', 'bar-label')
+        .attr('x', (d) => x(d.label) + x.bandwidth() / 2)
+        .attr('y', (d) => y(Math.min(d.value, d.max)) - 6)
+        .attr('text-anchor', 'middle')
+        .attr('fill', '#f8fafc')
+        .attr('font-size', '12px')
+        .attr('font-weight', '700')
+        .attr('font-family', 'Geist, sans-serif')
+        .attr('opacity', 0)
+        .text((d) => d.max === 100 ? d.value + '%' : d.value)
+        .transition()
+        .delay(400)
+        .duration(400)
+        .attr('opacity', 1);
+    }
+
+    function avg(arr, fn) {
+      if (!arr.length) return 0;
+      return arr.reduce((s, r) => s + fn(r), 0) / arr.length;
+    }
+
+    /* ================================================================
+       INITIAL VIEW STATE
+       ================================================================ */
+    switchView('analyzer');
   </script>
 </body>
 </html>

@@ -52,3 +52,5 @@ build/
 tmp/
 temp/
 .kilo/
+# User data (accounts, sessions, saved reports)
+data/

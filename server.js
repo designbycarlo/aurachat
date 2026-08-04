@@ -6,6 +6,7 @@ require('dotenv').config();
 const { createOpenAI } = require('@ai-sdk/openai');
 const { generateText } = require('ai');
 const { generatePDFReport } = require('./generate-pdf');
+const store = require('./data-store');
 
 const app = express();
 app.use(express.json());
@@ -275,6 +276,100 @@ app.post('/api/report/csv', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+
+/* ------------------------------------------------------------------ *
+ * Auth + saved reports
+ * ------------------------------------------------------------------ */
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function requireAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  const user = token ? store.userForToken(token) : null;
+  if (!user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  req.user = user;
+  req.token = token;
+  next();
+}
+
+function publicUser(user) {
+  return { id: user.id, email: user.email, createdAt: user.createdAt };
+}
+
+app.post('/api/auth/register', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  if (!EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'Please provide a valid email address' });
+  }
+  if (password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (store.findByEmail(email)) {
+    return res.status(409).json({ error: 'An account with that email already exists' });
+  }
+  const user = store.createUser(email, password);
+  const token = store.createSession(user.id);
+  res.status(201).json({ user: publicUser(user), token });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  const user = store.findByEmail(email);
+  if (!user || !store.safeEqual(store.hashPassword(password, user.salt), user.passHash)) {
+    return res.status(401).json({ error: 'Invalid email or password' });
+  }
+  const token = store.createSession(user.id);
+  res.json({ user: publicUser(user), token });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  if (token) store.destroySession(token);
+  res.json({ ok: true });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  const user = token ? store.userForToken(token) : null;
+  if (!user) return res.status(401).json({ error: 'Not authenticated' });
+  res.json({ user: publicUser(user) });
+});
+
+/* Saved personalized reports — always tied to the authenticated user */
+
+app.post('/api/reports', requireAuth, (req, res) => {
+  const report = req.body;
+  if (!report || typeof report !== 'object' || !report.signals || typeof report.signals !== 'object') {
+    return res.status(400).json({ error: 'Report data is required' });
+  }
+  const saved = store.addReport(req.user.id, report);
+  res.status(201).json({ id: saved.id, createdAt: saved.createdAt });
+});
+
+app.get('/api/reports', requireAuth, (req, res) => {
+  res.json({ reports: store.listReports(req.user.id) });
+});
+
+app.get('/api/reports/:id', requireAuth, (req, res) => {
+  const rec = store.getReport(req.user.id, req.params.id);
+  if (!rec) return res.status(404).json({ error: 'Report not found' });
+  res.json({ report: rec.report });
+});
+
+app.delete('/api/reports/:id', requireAuth, (req, res) => {
+  if (!store.deleteReport(req.user.id, req.params.id)) {
+    return res.status(404).json({ error: 'Report not found' });
+  }
+  res.json({ ok: true });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`AI SEO/AEO Analyzer running at http://0.0.0.0:${PORT}`);
 });
