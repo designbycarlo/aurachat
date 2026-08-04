@@ -72,6 +72,16 @@
       --success: #4ade80;
       --warn: #facc15;
       --danger: #f87171;
+
+      /* Widget system */
+      --widget: #172033;
+      --widget-2: #131c2e;
+      --line: rgba(148, 163, 184, 0.16);
+      --line-strong: rgba(148, 163, 184, 0.28);
+      --indigo: #818cf8;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(2, 6, 23, 0.35);
     }
     * { box-sizing: border-box; } html { -webkit-text-size-adjust: 100%; touch-action: manipulation; -ms-touch-action: manipulation; } body { touch-action: manipulation; -ms-touch-action: manipulation; overscroll-behavior: none; } @media (hover: none) and (pointer: coarse) { body { -webkit-touch-callout: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; } input, button { user-select: text; -webkit-user-select: text; } }
     body {
@@ -87,7 +97,7 @@
     }
     .container {
       width: 100%;
-      max-width: 800px;
+      max-width: 920px;
     }
     .card {
       background: var(--card);
@@ -135,8 +145,6 @@
       .logo { width: 36px; height: 36px; }
       .brand-name { height: 42px; }
       h1 { font-size: 12px; }
-      .score-row { flex-direction: column; align-items: center; gap: 12px; }
-      .summary-col { text-align: center; }
     }
     form {
       display: flex;
@@ -178,73 +186,313 @@
     .result.visible {
       display: block;
     }
-    .score-row {
-      display: flex;
-      align-items: flex-start;
-      gap: 24px;
-      flex-wrap: wrap;
+
+    /* ---------- Widget dashboard ---------- */
+    @property --pct {
+      syntax: '<number>';
+      initial-value: 0;
+      inherits: false;
     }
-    .score-col {
-      flex-shrink: 0;
+    .widgets {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+    .widget {
+      position: relative;
+      grid-column: span 12;
+      background: linear-gradient(180deg, var(--widget) 0%, var(--widget-2) 100%);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: widgetIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation-delay: calc(var(--i, 0) * 55ms);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .widget::before {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 2px;
+      background: var(--rail, transparent);
+      opacity: 0.9;
+    }
+    .widget:hover {
+      border-color: var(--line-strong);
+    }
+    @keyframes widgetIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.995); }
+      to { opacity: 1; transform: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .widget { animation: none; }
+    }
+    .eyebrow {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .w-head {
       display: flex;
-      flex-direction: column;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
     }
-    .summary-col {
-      flex: 1;
-      min-width: 200px;
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 12px 0;
     }
-    .score {
-      width: 96px;
-      height: 96px;
+
+    /* Score gauge */
+    .w-score { grid-column: span 4; text-align: center; }
+    .gauge {
+      position: relative;
+      width: 136px;
+      height: 136px;
+      margin: 10px auto 4px;
       border-radius: 50%;
+      background:
+        conic-gradient(var(--gauge, var(--accent)) calc(var(--pct) * 1%), rgba(148,163,184,0.12) 0);
+      transition: --pct 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+      display: grid;
+      place-items: center;
+    }
+    .gauge::after {
+      content: '';
+      position: absolute;
+      inset: 11px;
+      border-radius: 50%;
+      background: #141d2f;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .gauge-inner {
+      position: relative;
+      z-index: 1;
+      line-height: 1;
+    }
+    .gauge-value {
+      display: block;
+      font-size: 42px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+    }
+    .gauge-sub {
+      display: block;
+      margin-top: 6px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .grade-row {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 34px;
-      font-weight: 800;
-      color: #0f172a;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
     }
-    .grade {
-      font-size: 22px;
+    .grade-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(248, 250, 252, 0.06);
+      border: 1px solid var(--line-strong);
+      font-size: 13px;
       font-weight: 700;
-      text-align: center;
+      letter-spacing: 0.04em;
     }
-    .summary {
-      color: var(--muted);
-      margin-top: 4px;
-      line-height: 1.5;
-    }
-    .lists {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 16px;
-      margin-top: 20px;
-    }
-    .list {
-      background: #0f172a;
-      border-radius: 12px;
-      padding: 16px;
-    }
-    .list h3 {
-      margin: 0 0 10px;
-      font-size: 14px;
-      text-transform: uppercase;
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
       letter-spacing: 0.08em;
+      text-transform: uppercase;
+      background: var(--chip-bg, rgba(56,189,248,0.12));
+      color: var(--chip-fg, var(--accent));
+      border: 1px solid var(--chip-bd, rgba(56,189,248,0.28));
+      white-space: nowrap;
+    }
+
+    /* Analyzed page + summary */
+    .w-summary { grid-column: span 8; }
+    .page-title {
+      margin: 8px 0 4px;
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .page-url {
+      display: block;
+      font-size: 12px;
+      color: var(--accent);
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .page-url:hover { text-decoration: underline; }
+    .summary {
+      color: #cbd5e1;
+      margin: 8px 0 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Signal coverage */
+    .coverage {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .meter {
+      display: block;
+      width: 90px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(148,163,184,0.16);
+      overflow: hidden;
+    }
+    .meter i {
+      display: block;
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      background: var(--gauge, var(--accent));
+      transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .signal-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .signal {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 10px;
+      border-radius: var(--radius-sm);
+      background: rgba(148,163,184,0.06);
+      border: 1px solid var(--line);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--muted);
+      min-width: 0;
+    }
+    .signal.ok {
+      background: rgba(74, 222, 128, 0.08);
+      border-color: rgba(74, 222, 128, 0.24);
+      color: var(--text);
+    }
+    .signal span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .dot {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(148,163,184,0.14);
       color: var(--muted);
     }
-    .list ul {
+    .signal.ok .dot {
+      background: rgba(74, 222, 128, 0.16);
+      color: var(--success);
+    }
+    .dot svg { width: 10px; height: 10px; }
+
+    /* Stat tiles */
+    .stat { grid-column: span 3; padding: 14px 16px; }
+    .stat-value {
+      display: block;
+      margin-top: 8px;
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-note {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* List widgets */
+    .w-half { grid-column: span 6; }
+    .w-list ul {
+      list-style: none;
       margin: 0;
-      padding-left: 18px;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .list li {
-      margin-bottom: 8px;
-      line-height: 1.45;
+    .w-list li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #dbe3ee;
     }
-    .strengths li { color: #bbf7d0; }
-    .weaknesses li { color: #fecaca; }
-    .recommendations li { color: #e2e8f0; }
+    .w-list li .dot { margin-top: 1px; }
+    .strengths { --rail: linear-gradient(90deg, #4ade80, rgba(74,222,128,0)); }
+    .strengths .dot { background: rgba(74,222,128,0.16); color: var(--success); }
+    .weaknesses { --rail: linear-gradient(90deg, #f87171, rgba(248,113,113,0)); }
+    .weaknesses .dot { background: rgba(248,113,113,0.16); color: var(--danger); }
+    .recommendations { --rail: linear-gradient(90deg, #818cf8, rgba(129,140,248,0)); }
+    .prio {
+      flex-shrink: 0;
+      min-width: 26px;
+      height: 20px;
+      padding: 0 6px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: rgba(129,140,248,0.14);
+      color: var(--indigo);
+      border: 1px solid rgba(129,140,248,0.26);
+    }
+    .prio.high {
+      background: var(--indigo);
+      color: #0f172a;
+      border-color: transparent;
+    }
+    .empty-note {
+      font-size: 13px;
+      color: var(--muted);
+      font-style: italic;
+    }
     .error {
       margin-top: 16px;
       padding: 12px 14px;
@@ -280,36 +528,157 @@
       display: inline-block;
       animation: fadeIn 0.4s ease;
     }
-    .pdf-btn-container {
-      margin-top: 20px;
+    /* Export widget */
+    .w-actions {
       display: flex;
-      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+      background: linear-gradient(180deg, rgba(129,140,248,0.10) 0%, var(--widget-2) 100%);
+    }
+    .actions-copy { min-width: 180px; flex: 1; }
+    .actions-copy p {
+      margin: 6px 0 0;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .pdf-btn-container {
+      display: flex;
+      gap: 10px;
       flex-wrap: wrap;
     }
     .pdf-btn {
-      flex: 1;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 14px 20px;
+      padding: 12px 18px;
       border-radius: 12px;
-      border: 1px solid #334155;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: 1px solid rgba(129,140,248,0.35);
+      background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
       color: #ffffff;
-      font-weight: 700;
-      font-size: 16px;
+      font-weight: 600;
+      font-size: 14px;
       cursor: pointer;
-      transition: transform 0.15s ease, box-shadow 0.2s ease;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+    }
+    .pdf-btn svg { width: 15px; height: 15px; }
+    .pdf-btn.secondary {
+      background: rgba(148,163,184,0.10);
+      border-color: var(--line-strong);
+      color: var(--text);
     }
     .pdf-btn:hover {
       transform: translateY(-1px);
-      box-shadow: 0 8px 24px rgba(102,126,234,0.4);
+      box-shadow: 0 8px 24px rgba(99,102,241,0.28);
     }
     .pdf-btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
       transform: none;
+      box-shadow: none;
+    }
+
+    /* Responsive widget layout (declared after the widget rules so these win) */
+    @media (max-width: 900px) {
+      .w-score, .w-summary { grid-column: span 12; }
+      .signal-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .w-half { grid-column: span 12; }
+      .stat { grid-column: span 6; }
+      .signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .w-actions { flex-direction: column; align-items: stretch; }
+      .pdf-btn { flex: 1; }
+    }
+    @media (max-width: 480px) {
+      .widget { padding: 14px; }
+      .gauge { width: 120px; height: 120px; }
+      .gauge-value { font-size: 36px; }
+      .stat-value { font-size: 22px; }
+      .w-list li { font-size: 12.5px; }
+    }
+
+    /* Print: mirror the PDF widget layout on a single sheet */
+    @media print {
+      @page { size: letter portrait; margin: 11mm; }
+      body { background: #ffffff; color: #0f172a; display: block; padding: 0; }
+      .card { background: #ffffff; box-shadow: none; padding: 0; }
+      .container { max-width: none; }
+      form, .loading, .error, .w-actions, .subtitle { display: none !important; }
+      .header { margin-bottom: 4px; }
+      .logo { width: 26px; height: 26px; }
+      .brand-name { height: 30px; }
+      h1 { font-size: 9px; color: #64748b; }
+      .result { margin-top: 8px; }
+      .widgets { gap: 7px; }
+      .widget {
+        background: #ffffff;
+        border: 1px solid #dbe2ec;
+        border-radius: 10px;
+        box-shadow: none;
+        animation: none;
+        padding: 8px 10px;
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .widget::before { display: none; }
+      .w-head { margin-bottom: 6px; }
+      .divider { margin: 6px 0; background: #e6ebf2; }
+      .eyebrow, .stat-note, .coverage { color: #64748b; font-size: 8px; }
+      .summary { color: #334155; font-size: 10px; line-height: 1.45; margin-top: 4px; }
+      .w-list li, .page-title, .gauge-value, .grade-badge { color: #0f172a; }
+      .gauge {
+        width: 96px;
+        height: 96px;
+        margin: 2px auto;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .gauge::after { background: #ffffff; inset: 9px; }
+      .gauge-value { font-size: 28px; }
+      .gauge-sub { font-size: 7.5px; margin-top: 3px; }
+      .grade-row { margin-top: 6px; }
+      .grade-badge { font-size: 10px; padding: 3px 9px; border-color: #dbe2ec; background: #f6f8fb; }
+      .chip {
+        font-size: 7.5px;
+        padding: 2px 7px;
+        border-color: #dbe2ec;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .page-title { font-size: 12.5px; margin: 4px 0 2px; }
+      .page-url { font-size: 9px; }
+      .signal-grid { gap: 5px; }
+      .signal {
+        font-size: 8.5px;
+        padding: 4px 6px;
+        border-color: #e2e8f0;
+        background: #f7f9fc;
+        color: #64748b;
+      }
+      .signal.ok { background: #f0fbf4; border-color: #cfeeda; color: #0f172a; }
+      .dot {
+        width: 14px;
+        height: 14px;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .dot svg { width: 8px; height: 8px; }
+      .meter { width: 70px; height: 5px; }
+      .meter i { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .stat { padding: 7px 10px; }
+      .stat-value { font-size: 17px; margin-top: 4px; }
+      .w-list ul { gap: 6px; }
+      .w-list li { font-size: 9.5px; line-height: 1.35; gap: 7px; color: #334155; }
+      .prio {
+        min-width: 20px;
+        height: 15px;
+        font-size: 7.5px;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
     }
   </style>
 </head>
@@ -333,36 +702,95 @@
       </div>
       <div class="error" id="error"></div>
       <div class="result" id="result">
-        <div class="score-row">
-          <div class="score-col">
-            <div class="score" id="scoreCircle">--</div>
-            <div class="grade" id="gradeText">--</div>
-          </div>
-          <div class="summary-col">
-            <div class="summary" id="summaryText"></div>
-          </div>
-        </div>
-        <div class="lists">
-          <div class="list strengths">
-            <h3>Strengths</h3>
+        <div class="widgets">
+          <section class="widget w-score" id="scoreWidget" style="--i: 0" aria-label="Readiness score">
+            <div class="w-head">
+              <span class="eyebrow">Readiness Score</span>
+              <span class="chip" id="verdictChip">Pending</span>
+            </div>
+            <div class="gauge" id="gauge" role="img" aria-label="AI readiness score gauge">
+              <div class="gauge-inner">
+                <span class="gauge-value" id="scoreValue">0</span>
+                <span class="gauge-sub">out of 100</span>
+              </div>
+            </div>
+            <div class="grade-row">
+              <span class="grade-badge">Grade <strong id="gradeBadge">--</strong></span>
+            </div>
+          </section>
+
+          <section class="widget w-summary" style="--i: 1" aria-label="Analyzed page and summary">
+            <span class="eyebrow">Analyzed Page</span>
+            <h3 class="page-title" id="pageTitle">Untitled page</h3>
+            <a class="page-url" id="pageUrl" href="#" target="_blank" rel="noopener noreferrer">--</a>
+            <div class="divider"></div>
+            <span class="eyebrow">Executive Summary</span>
+            <p class="summary" id="summaryText"></p>
+          </section>
+
+          <section class="widget w-signals" style="--i: 2" aria-label="Signal coverage">
+            <div class="w-head">
+              <span class="eyebrow">Signal Coverage</span>
+              <div class="coverage">
+                <span id="coverageText">0 / 10 present</span>
+                <span class="meter"><i id="coverageBar"></i></span>
+              </div>
+            </div>
+            <div class="signal-grid" id="signalGrid"></div>
+          </section>
+
+          <section class="widget stat" style="--i: 3">
+            <span class="eyebrow">Word Count</span>
+            <span class="stat-value" id="statWords">0</span>
+            <span class="stat-note" id="statWordsNote">--</span>
+          </section>
+          <section class="widget stat" style="--i: 4">
+            <span class="eyebrow">JSON-LD Blocks</span>
+            <span class="stat-value" id="statJsonLd">0</span>
+            <span class="stat-note" id="statJsonLdNote">--</span>
+          </section>
+          <section class="widget stat" style="--i: 5">
+            <span class="eyebrow">Headings Found</span>
+            <span class="stat-value" id="statHeadings">0</span>
+            <span class="stat-note" id="statHeadingsNote">--</span>
+          </section>
+          <section class="widget stat" style="--i: 6">
+            <span class="eyebrow">Signal Coverage</span>
+            <span class="stat-value" id="statCoverage">0%</span>
+            <span class="stat-note" id="statCoverageNote">--</span>
+          </section>
+
+          <section class="widget w-half w-list strengths" style="--i: 7" aria-label="Strengths">
+            <div class="w-head"><span class="eyebrow">Strengths</span><span class="chip" id="strengthsCount" style="--chip-bg: rgba(74,222,128,0.12); --chip-fg: #4ade80; --chip-bd: rgba(74,222,128,0.28)">0</span></div>
             <ul id="strengthsList"></ul>
-          </div>
-          <div class="list weaknesses">
-            <h3>Weaknesses</h3>
+          </section>
+
+          <section class="widget w-half w-list weaknesses" style="--i: 8" aria-label="Weaknesses">
+            <div class="w-head"><span class="eyebrow">Weaknesses</span><span class="chip" id="weaknessesCount" style="--chip-bg: rgba(248,113,113,0.12); --chip-fg: #f87171; --chip-bd: rgba(248,113,113,0.28)">0</span></div>
             <ul id="weaknessesList"></ul>
-          </div>
-          <div class="list recommendations">
-            <h3>Recommendations</h3>
+          </section>
+
+          <section class="widget w-list recommendations" style="--i: 9" aria-label="Prioritized recommendations">
+            <div class="w-head"><span class="eyebrow">Prioritized Recommendations</span><span class="chip" id="recommendationsCount" style="--chip-bg: rgba(129,140,248,0.12); --chip-fg: #818cf8; --chip-bd: rgba(129,140,248,0.28)">0</span></div>
             <ul id="recommendationsList"></ul>
-          </div>
-        </div>
-        <div class="pdf-btn-container">
-          <button type="button" class="pdf-btn" id="pdfBtn">
-            <span id="pdfBtnText">Download PDF Report</span>
-          </button>
-          <button type="button" class="pdf-btn" id="csvBtn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-            <span id="csvBtnText">Download CSV Report</span>
-          </button>
+          </section>
+
+          <section class="widget w-actions" style="--i: 10">
+            <div class="actions-copy">
+              <span class="eyebrow">Export</span>
+              <p>Take the full report with you as a one-page PDF or raw CSV data.</p>
+            </div>
+            <div class="pdf-btn-container">
+              <button type="button" class="pdf-btn" id="pdfBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>
+                <span id="pdfBtnText">PDF Report</span>
+              </button>
+              <button type="button" class="pdf-btn secondary" id="csvBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
+                <span id="csvBtnText">CSV Data</span>
+              </button>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -454,12 +882,159 @@
       }
     }
 
-    function gradeColor(score) {
-      if (score >= 85) return 'var(--success)';
-      if (score >= 70) return '#38bdf8';
-      if (score >= 55) return 'var(--warn)';
-      if (score >= 40) return '#fb923c';
-      return 'var(--danger)';
+    function scoreBand(score) {
+      if (score >= 85) return { label: 'Exceptional', color: '#4ade80', soft: 'rgba(74,222,128,0.12)', border: 'rgba(74,222,128,0.3)' };
+      if (score >= 70) return { label: 'Strong', color: '#38bdf8', soft: 'rgba(56,189,248,0.12)', border: 'rgba(56,189,248,0.3)' };
+      if (score >= 55) return { label: 'Developing', color: '#facc15', soft: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.3)' };
+      if (score >= 40) return { label: 'Needs Work', color: '#fb923c', soft: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.3)' };
+      return { label: 'Critical', color: '#f87171', soft: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)' };
+    }
+
+    const ICONS = {
+      check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 12 5.5 5.5L20 7"/></svg>',
+      cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+      arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h14"/><path d="m13 6 6 6-6 6"/></svg>',
+    };
+
+    function buildSignalChecks(signals) {
+      const s = signals || {};
+      const headings = Array.isArray(s.headings) ? s.headings : [];
+      return [
+        { label: 'Title Tag', ok: !!s.title },
+        { label: 'Meta Desc.', ok: !!s.metaDescription },
+        { label: 'Canonical', ok: !!s.canonical },
+        { label: 'Open Graph', ok: !!(s.ogTitle || s.ogDescription) },
+        { label: 'JSON-LD', ok: !!s.hasJsonLd },
+        { label: 'Headings', ok: headings.length > 0 },
+        { label: 'FAQ / How-to', ok: !!(s.hasFAQ || s.hasHowTo) },
+        { label: 'Conversational', ok: !!s.hasConversationalContent },
+        { label: 'Schema.org', ok: !!s.hasSchemaOrg },
+        { label: 'AI Markers', ok: !!s.hasAIAgentMarkers },
+      ];
+    }
+
+    let countUpFrame = null;
+
+    function animateScore(target) {
+      const el = document.getElementById('scoreValue');
+      if (countUpFrame) cancelAnimationFrame(countUpFrame);
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (reduced) {
+        el.textContent = target;
+        return;
+      }
+      const start = performance.now();
+      const duration = 1100;
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = Math.round(target * eased);
+        if (t < 1) countUpFrame = requestAnimationFrame(step);
+      };
+      countUpFrame = requestAnimationFrame(step);
+    }
+
+    function renderReport(data) {
+      const signals = data.signals || {};
+      const score = data.score ?? 0;
+      const band = scoreBand(score);
+
+      /* Score widget */
+      const gauge = document.getElementById('gauge');
+      gauge.style.setProperty('--gauge', band.color);
+      gauge.style.setProperty('--pct', 0);
+      requestAnimationFrame(() => gauge.style.setProperty('--pct', score));
+      animateScore(score);
+      document.getElementById('gradeBadge').textContent = data.grade || '--';
+
+      const verdict = document.getElementById('verdictChip');
+      verdict.textContent = band.label;
+      verdict.style.setProperty('--chip-bg', band.soft);
+      verdict.style.setProperty('--chip-fg', band.color);
+      verdict.style.setProperty('--chip-bd', band.border);
+      document.getElementById('scoreWidget').style.setProperty('--rail',
+        'linear-gradient(90deg, ' + band.color + ', transparent)');
+
+      /* Analyzed page */
+      document.getElementById('pageTitle').textContent = signals.title || 'Untitled page';
+      const urlEl = document.getElementById('pageUrl');
+      urlEl.textContent = signals.url || '--';
+      urlEl.href = signals.url || '#';
+      document.getElementById('summaryText').textContent = data.summary || '';
+
+      /* Signal coverage */
+      const checks = buildSignalChecks(signals);
+      const passed = checks.filter((c) => c.ok).length;
+      const coverage = Math.round((passed / checks.length) * 100);
+      const grid = document.getElementById('signalGrid');
+      grid.innerHTML = '';
+      checks.forEach((check) => {
+        const item = document.createElement('div');
+        item.className = 'signal' + (check.ok ? ' ok' : '');
+        item.innerHTML = '<span class="dot">' + (check.ok ? ICONS.check : ICONS.cross) + '</span><span>' +
+          check.label + '</span>';
+        item.title = check.label + (check.ok ? ': present' : ': missing');
+        grid.appendChild(item);
+      });
+      document.getElementById('coverageText').textContent = passed + ' / ' + checks.length + ' present';
+      const bar = document.getElementById('coverageBar');
+      bar.style.setProperty('--gauge', band.color);
+      bar.style.width = '0%';
+      requestAnimationFrame(() => { bar.style.width = coverage + '%'; });
+
+      /* Stat tiles */
+      const headings = Array.isArray(signals.headings) ? signals.headings : [];
+      const h1Count = headings.filter((h) => String(h.level) === '1').length;
+      const words = Number(signals.wordCount || 0);
+      const setStat = (id, value, note) => {
+        document.getElementById(id).textContent = value;
+        document.getElementById(id + 'Note').textContent = note;
+      };
+      setStat('statWords', words.toLocaleString('en-US'),
+        words >= 800 ? 'In-depth coverage' : words >= 300 ? 'Adequate depth' : 'Thin content');
+      setStat('statJsonLd', Number(signals.jsonLdCount || 0).toLocaleString('en-US'),
+        signals.hasJsonLd ? 'Machine readable' : 'None found');
+      setStat('statHeadings', headings.length,
+        h1Count ? h1Count + ' H1 detected' : 'No H1 detected');
+      setStat('statCoverage', coverage + '%', passed + ' of ' + checks.length + ' present');
+
+      /* List widgets */
+      const fillList = (id, items, kind) => {
+        const ul = document.getElementById(id);
+        ul.innerHTML = '';
+        const list = Array.isArray(items) ? items.filter(Boolean) : [];
+        document.getElementById(id.replace('List', 'Count')).textContent = list.length;
+        if (!list.length) {
+          const li = document.createElement('li');
+          li.className = 'empty-note';
+          li.textContent = kind === 'weaknesses'
+            ? 'No blocking weaknesses were detected.'
+            : kind === 'strengths'
+              ? 'No standout strengths were detected.'
+              : 'No recommendations were returned.';
+          ul.appendChild(li);
+          return;
+        }
+        list.forEach((item, i) => {
+          const li = document.createElement('li');
+          const marker = document.createElement('span');
+          if (kind === 'recommendations') {
+            marker.className = 'prio' + (i < 2 ? ' high' : '');
+            marker.textContent = 'P' + (i + 1);
+          } else {
+            marker.className = 'dot';
+            marker.innerHTML = kind === 'strengths' ? ICONS.check : ICONS.arrow;
+          }
+          const text = document.createElement('span');
+          text.textContent = item;
+          li.appendChild(marker);
+          li.appendChild(text);
+          ul.appendChild(li);
+        });
+      };
+      fillList('strengthsList', data.strengths, 'strengths');
+      fillList('weaknessesList', data.weaknesses, 'weaknesses');
+      fillList('recommendationsList', data.recommendations, 'recommendations');
     }
 
     form.addEventListener('submit', async (e) => {
@@ -480,25 +1055,15 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Request failed');
         if (data.error) throw new Error(data.error);
-        const score = data.score ?? 0;
-        document.getElementById('scoreCircle').textContent = score;
-        document.getElementById('scoreCircle').style.background = gradeColor(score);
-        document.getElementById('gradeText').textContent = `Grade: ${data.grade || '--'}`;
-        document.getElementById('summaryText').textContent = data.summary || '';
-        const fillList = (id, items) => {
-          const ul = document.getElementById(id);
-          ul.innerHTML = '';
-          (items || []).forEach((item) => {
-            const li = document.createElement('li');
-            li.textContent = item;
-            ul.appendChild(li);
-          });
-        };
-        fillList('strengthsList', data.strengths);
-        fillList('weaknessesList', data.weaknesses);
-        fillList('recommendationsList', data.recommendations);
         lastResult = data;
+        renderReport(data);
         result.classList.add('visible');
+        // Replay the entrance animation on repeat analyses.
+        result.querySelectorAll('.widget').forEach((widget) => {
+          widget.style.animation = 'none';
+          void widget.offsetWidth;
+          widget.style.animation = '';
+        });
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
@@ -512,7 +1077,7 @@
     pdfBtn.addEventListener('click', async () => {
       if (!lastResult) return;
       pdfBtn.disabled = true;
-      pdfBtn.querySelector('#pdfBtnText').textContent = 'Generating PDF...';
+      pdfBtn.querySelector('#pdfBtnText').textContent = 'Generating...';
       try {
         const res = await fetch('/api/report/pdf', {
           method: 'POST',
@@ -534,14 +1099,14 @@
         errorEl.style.display = 'block';
       } finally {
         pdfBtn.disabled = false;
-        pdfBtn.querySelector('#pdfBtnText').textContent = 'Download PDF Report';
+        pdfBtn.querySelector('#pdfBtnText').textContent = 'PDF Report';
       }
     });
 
     csvBtn.addEventListener('click', async () => {
       if (!lastResult) return;
       csvBtn.disabled = true;
-      csvBtn.querySelector('#csvBtnText').textContent = 'Generating CSV...';
+      csvBtn.querySelector('#csvBtnText').textContent = 'Generating...';
       try {
         const res = await fetch('/api/report/csv', {
           method: 'POST',
@@ -563,7 +1128,7 @@
         errorEl.style.display = 'block';
       } finally {
         csvBtn.disabled = false;
-        csvBtn.querySelector('#csvBtnText').textContent = 'Download CSV Report';
+        csvBtn.querySelector('#csvBtnText').textContent = 'CSV Data';
       }
     });
   </script>
