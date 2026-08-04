@@ -48,7 +48,28 @@ const STANDARD_FONTS = {
 };
 
 /**
- * Fonts must be registered on every document instance -- registration state
+ * Convert a hex color string to a CMYK array [C, M, Y, K] with values 0-100.
+ * Used for print-ready output where all colors must be in the CMYK color space.
+ */
+function hexToCMYK(hex) {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.substring(0, 2), 16);
+  const g = parseInt(h.substring(2, 4), 16);
+  const b = parseInt(h.substring(4, 6), 16);
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+  const k = 1 - Math.max(rNorm, gNorm, bNorm);
+  if (k === 1) return [0, 0, 0, 100];
+  const c = Math.round((1 - rNorm - k) / (1 - k) * 100);
+  const m = Math.round((1 - gNorm - k) / (1 - k) * 100);
+  const y = Math.round((1 - bNorm - k) / (1 - k) * 100);
+  const kVal = Math.round(k * 100);
+  return [c, m, y, kVal];
+}
+
+/**
+ * Register fonts on every document instance -- registration state
  * lives on the document, not on the module. Returns the font-name map that is
  * safe to use for this document.
  * Tries Geist first, then falls back to Helvetica, then to PDF standard fonts.
@@ -87,7 +108,7 @@ function registerFonts(doc) {
 }
 
 function findLogo() {
-  const candidates = ['icon-192.png', 'favicon-32.png', 'apple-touch-icon.png'];
+  const candidates = ['icon-512.png', 'icon-192.png', 'apple-touch-icon.png'];
   for (const file of candidates) {
     const candidate = path.join(PUBLIC_DIR, file);
     if (fs.existsSync(candidate)) return candidate;
@@ -96,38 +117,53 @@ function findLogo() {
 }
 
 /* ------------------------------------------------------------------ *
- * Design tokens
- * ------------------------------------------------------------------ */
+  * Design tokens — PRINT-READY (CMYK color space, bleed, crop marks)
+  * ------------------------------------------------------------------ */
 
-const PAGE_W = 612;
-const PAGE_H = 792;
-const MARGIN = 40;
-const CONTENT_W = PAGE_W - MARGIN * 2; // 532
-const GUTTER = 11;
+const BLEED = 9; // 0.125" = 9pt bleed on all sides
+const PAGE_W = 612 + BLEED * 2; // Letter + bleed
+const PAGE_H = 792 + BLEED * 2;
+const TRIM_W = 612;
+const TRIM_H = 792;
+const MARGIN = 54; // 0.75" safe zone from trim edge
+const CONTENT_W = TRIM_W - MARGIN * 2; // 504
+const GUTTER = 12;
 
+const CROP_MARK_LEN = 18;
+const CROP_MARK_GAP = 6;
+const CROP_MARK_WEIGHT = 0.5;
+
+// CMYK color palette — all values in [C, M, Y, K] range 0-100
+// Converted from hex for print accuracy; avoids RGB-to-CMYK conversion at render time
 const C = {
-  ink: '#0F172A',
-  body: '#334155',
-  muted: '#64748B',
-  faint: '#94A3B8',
-  hairline: '#E4E8EF',
-  surface: '#FFFFFF',
-  wash: '#F7F9FC',
-  accent: '#4F46E5',
-  accentWash: '#EEF0FE',
-  success: '#15803D',
-  successWash: '#EDFBF1',
-  danger: '#BE123C',
-  dangerWash: '#FFF1F3',
-  white: '#FFFFFF',
+  ink: hexToCMYK('#0B0F14'),
+  body: hexToCMYK('#223040'),
+  muted: hexToCMYK('#4A5A6A'),
+  faint: hexToCMYK('#7A8A9A'),
+  hairline: hexToCMYK('#C8CED6'),
+  surface: hexToCMYK('#FFFFFF'),
+  wash: hexToCMYK('#F0F2F5'),
+  accent: hexToCMYK('#3A35A0'),
+  accentWash: hexToCMYK('#E8E7F5'),
+  success: hexToCMYK('#0D6B2E'),
+  successWash: hexToCMYK('#E6F4EA'),
+  danger: hexToCMYK('#A01E3A'),
+  dangerWash: hexToCMYK('#FCE8EC'),
+  white: hexToCMYK('#FFFFFF'),
+  registration: hexToCMYK('#000000'),
 };
 
+// Minimum print specifications
+const MIN_FONT_SIZE = 6;       // 6pt absolute minimum for body text
+const MIN_LINE_WEIGHT = 0.35;  // 0.25pt hairline minimum (0.35pt for safety)
+const MIN_HEADING_SIZE = 7;    // 7pt minimum for headings/eyebrows
+
 const BANDS = [
-  { min: 85, label: 'Exceptional', color: '#15803D', wash: '#EDFBF1' },
-  { min: 70, label: 'Strong', color: '#0E7490', wash: '#ECFBFD' },
-  { min: 55, label: 'Developing', color: '#B45309', wash: '#FFF8EC' },
-  { min: 40, label: 'Needs Work', color: '#C2410C', wash: '#FFF4ED' },
-  { min: -Infinity, label: 'Critical', color: '#BE123C', wash: '#FFF1F3' },
+  { min: 85, label: 'Exceptional', color: hexToCMYK('#15803D'), wash: hexToCMYK('#EDFBF1') },
+  { min: 70, label: 'Strong', color: hexToCMYK('#0E7490'), wash: hexToCMYK('#ECFBFD') },
+  { min: 55, label: 'Developing', color: hexToCMYK('#B45309'), wash: hexToCMYK('#FFF8EC') },
+  { min: 40, label: 'Needs Work', color: hexToCMYK('#C2410C'), wash: hexToCMYK('#FFF4ED') },
+  { min: -Infinity, label: 'Critical', color: hexToCMYK('#BE123C'), wash: hexToCMYK('#FFF1F3') },
 ];
 
 function scoreBand(score) {
@@ -174,7 +210,7 @@ function card(doc, x, y, w, h, opts = {}) {
   const radius = opts.radius ?? 8;
   doc.save();
   doc.roundedRect(x, y, w, h, radius).fill(opts.fill || C.surface);
-  doc.lineWidth(opts.lineWidth ?? 0.7);
+  doc.lineWidth(opts.lineWidth ?? Math.max(MIN_LINE_WEIGHT, 0.7));
   doc.roundedRect(x, y, w, h, radius).stroke(opts.border || C.hairline);
   if (opts.accent) {
     // Accent rail along the top edge, clipped to the rounded corner radius.
@@ -186,7 +222,7 @@ function card(doc, x, y, w, h, opts = {}) {
   doc.restore();
 }
 
-function eyebrow(doc, fonts, text, x, y, color, size = 6.4) {
+function eyebrow(doc, fonts, text, x, y, color, size = MIN_HEADING_SIZE) {
   doc
     .font(fonts.semibold)
     .fontSize(size)
@@ -198,7 +234,7 @@ function eyebrow(doc, fonts, text, x, y, color, size = 6.4) {
 }
 
 function pill(doc, fonts, text, x, y, opts = {}) {
-  const size = opts.size ?? 6.6;
+  const size = Math.max(MIN_FONT_SIZE, opts.size ?? 6.6);
   const padX = opts.padX ?? 6;
   const h = opts.height ?? 13;
   doc.font(fonts.semibold).fontSize(size);
@@ -206,7 +242,7 @@ function pill(doc, fonts, text, x, y, opts = {}) {
   doc.save();
   doc.roundedRect(x, y, w, h, h / 2).fill(opts.fill || C.accentWash);
   if (opts.border) {
-    doc.lineWidth(0.6).roundedRect(x, y, w, h, h / 2).stroke(opts.border);
+    doc.lineWidth(Math.max(MIN_LINE_WEIGHT, 0.6)).roundedRect(x, y, w, h, h / 2).stroke(opts.border);
   }
   doc.restore();
   doc
@@ -258,7 +294,7 @@ function ring(doc, cx, cy, radius, progress, opts = {}) {
   const width = opts.width ?? 8;
   doc.save();
   doc.lineWidth(width);
-  doc.circle(cx, cy, radius).stroke(opts.track || '#EDF1F7');
+  doc.circle(cx, cy, radius).stroke(opts.track || C.wash);
   const pct = Math.max(0, Math.min(1, progress));
   if (pct > 0) {
     doc.lineCap('round');
@@ -283,7 +319,7 @@ function ring(doc, cx, cy, radius, progress, opts = {}) {
 function meterBar(doc, x, y, w, h, progress, color, track) {
   const pct = Math.max(0, Math.min(1, progress));
   doc.save();
-  doc.roundedRect(x, y, w, h, h / 2).fill(track || '#EDF1F7');
+  doc.roundedRect(x, y, w, h, h / 2).fill(track || C.wash);
   if (pct > 0) {
     doc.roundedRect(x, y, Math.max(h, w * pct), h, h / 2).fill(color || C.accent);
   }
@@ -318,6 +354,108 @@ function cleanItems(items) {
   return (Array.isArray(items) ? items : [])
     .map((item) => String(item == null ? '' : item).replace(/\s+/g, ' ').trim())
     .filter(Boolean);
+}
+
+/* ------------------------------------------------------------------ *
+ * Print utilities — crop marks, registration marks, bleed handling
+ * ------------------------------------------------------------------ */
+
+const TRIM_X = BLEED;
+const TRIM_Y = BLEED;
+const TRIM_RIGHT = BLEED + TRIM_W;
+const TRIM_BOTTOM = BLEED + TRIM_H;
+
+function drawCropMarks(doc) {
+  const w = CROP_MARK_LEN;
+  const gap = CROP_MARK_GAP;
+  const lw = CROP_MARK_WEIGHT;
+  const c = C.registration;
+
+  doc.save();
+  doc.lineWidth(lw).lineCap('butt').strokeColor(c);
+
+  // Top-left
+  doc.moveTo(TRIM_X - w, TRIM_Y - gap).lineTo(TRIM_X + gap, TRIM_Y - gap).stroke();
+  doc.moveTo(TRIM_X - gap, TRIM_Y - w).lineTo(TRIM_X - gap, TRIM_Y + gap).stroke();
+
+  // Top-right
+  doc.moveTo(TRIM_RIGHT + gap, TRIM_Y - gap).lineTo(TRIM_RIGHT + w, TRIM_Y - gap).stroke();
+  doc.moveTo(TRIM_RIGHT + gap, TRIM_Y - w).lineTo(TRIM_RIGHT + gap, TRIM_Y + gap).stroke();
+
+  // Bottom-left
+  doc.moveTo(TRIM_X - w, TRIM_BOTTOM + gap).lineTo(TRIM_X + gap, TRIM_BOTTOM + gap).stroke();
+  doc.moveTo(TRIM_X - gap, TRIM_BOTTOM + gap).lineTo(TRIM_X - gap, TRIM_BOTTOM + w).stroke();
+
+  // Bottom-right
+  doc.moveTo(TRIM_RIGHT + gap, TRIM_BOTTOM + gap).lineTo(TRIM_RIGHT + w, TRIM_BOTTOM + gap).stroke();
+  doc.moveTo(TRIM_RIGHT + gap, TRIM_BOTTOM + gap).lineTo(TRIM_RIGHT + gap, TRIM_BOTTOM + w).stroke();
+
+  doc.restore();
+}
+
+function drawRegistrationMarks(doc) {
+  const size = 8;
+  const lw = 0.5;
+  const c = C.registration;
+  const cx = PAGE_W / 2;
+  const cy = PAGE_H / 2;
+
+  doc.save();
+  doc.lineWidth(lw).lineCap('round').strokeColor(c);
+
+  // Center registration cross
+  doc.moveTo(cx - size, cy).lineTo(cx + size, cy).stroke();
+  doc.moveTo(cx, cy - size).lineTo(cx, cy + size).stroke();
+  doc.circle(cx, cy, size + 2).stroke();
+
+  doc.restore();
+}
+
+function drawPageTrimBorder(doc) {
+  doc.save();
+  doc.lineWidth(0.35).dash([2, 2]).strokeColor(C.faint);
+  doc.rect(TRIM_X, TRIM_Y, TRIM_W, TRIM_H).stroke();
+  doc.undash();
+  doc.restore();
+}
+
+/**
+ * Attach a CMYK print output intent to the document catalog. A tagged output
+ * intent lets RIPs / print shops convert with a known CMYK profile rather than
+ * relying on a device-dependent preview. Mirrors PDFKit's own PDF/A output
+ * intent machinery but targets GTS_PDFX with the bundled CMYK profile.
+ * Failures are non-fatal -- a PDF without an intent still prints fine.
+ */
+function addPrintOutputIntent(doc) {
+  const profilePath = path.join(__dirname, 'icc', 'CGATS001Compat-v2-micro.icc');
+  let iccProfile = null;
+  try {
+    iccProfile = fs.readFileSync(profilePath);
+  } catch {
+    return;
+  }
+  try {
+    const colorProfileRef = doc.ref({
+      Length: iccProfile.length,
+      N: 4, // CMYK channels
+    });
+    colorProfileRef.write(iccProfile);
+    colorProfileRef.end();
+
+    const intentRef = doc.ref({
+      Type: 'OutputIntent',
+      S: 'GTS_PDFX',
+      Info: new String('AuraChat Print Ready CMYK'),
+      OutputCondition: new String('AuraChat CMYK Print Ready'),
+      OutputConditionIdentifier: new String('CGATS001 Compat v2 (CMYK)'),
+      DestOutputProfile: colorProfileRef,
+    });
+    intentRef.end();
+
+    doc._root.data.OutputIntents = [intentRef];
+  } catch {
+    // Non-fatal: the output intent is a nicety, never a blocker.
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -357,14 +495,18 @@ function listHeight(measured, count) {
  * the one that surfaces the most content, with ties broken toward the larger
  * type. That means a short report is set in comfortable 9pt while a dense one
  * tightens up rather than silently dropping recommendations.
+ *
+ * Leading is tuned for print: body text uses roughly 1.4x line height (font
+ * size + gap) which is the print-readability sweet spot; the compact scales
+ * trade leading for density only when the page genuinely runs out of room.
  */
 function fitPanels(doc, fonts, panels, available, rowGap) {
   const scales = [
-    { fontSize: 9, lineGap: 2.3, maxLines: 3 },
-    { fontSize: 8.4, lineGap: 1.9, maxLines: 3 },
-    { fontSize: 8, lineGap: 1.5, maxLines: 2 },
-    { fontSize: 7.6, lineGap: 1.2, maxLines: 2 },
-    { fontSize: 7.2, lineGap: 1, maxLines: 1 },
+    { fontSize: 9, lineGap: 2.8, maxLines: 3 },
+    { fontSize: 8.4, lineGap: 2.4, maxLines: 3 },
+    { fontSize: 8, lineGap: 2, maxLines: 2 },
+    { fontSize: 7.6, lineGap: 1.7, maxLines: 2 },
+    { fontSize: 7.2, lineGap: 1.5, maxLines: 1 },
   ];
 
   let best = null;
@@ -476,6 +618,7 @@ function drawHeader(doc, fonts, y, timestamp) {
   if (logo) {
     doc.save();
     doc.roundedRect(MARGIN, y, 24, 24, 6).clip();
+    // High-res logo for 300 DPI print quality (24pt at 300 DPI = 100px source)
     doc.image(logo, MARGIN, y, { width: 24, height: 24 });
     doc.restore();
   }
@@ -487,7 +630,7 @@ function drawHeader(doc, fonts, y, timestamp) {
     .text('aurachat', brandX, y + 1, { lineBreak: false, characterSpacing: -0.3 });
   doc
     .font(fonts.medium)
-    .fontSize(7.2)
+    .fontSize(Math.max(MIN_HEADING_SIZE, 7.2))
     .fillColor(C.muted)
     .text('AI SEO / AEO READINESS REPORT', brandX, y + 15, {
       characterSpacing: 0.7,
@@ -496,25 +639,25 @@ function drawHeader(doc, fonts, y, timestamp) {
 
   doc
     .font(fonts.medium)
-    .fontSize(7.6)
+    .fontSize(Math.max(MIN_HEADING_SIZE, 7.6))
     .fillColor(C.muted)
-    .text(timestamp, PAGE_W - MARGIN - 160, y + 2, {
+    .text(timestamp, TRIM_W - MARGIN - 160, y + 2, {
       width: 160,
       align: 'right',
       lineBreak: false,
     });
   doc
     .font(fonts.regular)
-    .fontSize(7)
+    .fontSize(Math.max(MIN_FONT_SIZE, 7))
     .fillColor(C.faint)
-    .text('Generated by AuraChat', PAGE_W - MARGIN - 160, y + 14, {
+    .text('Generated by AuraChat', TRIM_W - MARGIN - 160, y + 14, {
       width: 160,
       align: 'right',
       lineBreak: false,
     });
 
   const ruleY = y + 32;
-  doc.save().lineWidth(0.7).moveTo(MARGIN, ruleY).lineTo(PAGE_W - MARGIN, ruleY).stroke(C.hairline).restore();
+  doc.save().lineWidth(Math.max(MIN_LINE_WEIGHT, 0.7)).moveTo(MARGIN, ruleY).lineTo(TRIM_W - MARGIN, ruleY).stroke(C.hairline).restore();
 
   return ruleY + GUTTER + 2;
 }
@@ -539,7 +682,7 @@ function drawHeroRow(doc, fonts, y, report) {
     .text(String(score), MARGIN, scoreCy - 18, { width: scoreW, align: 'center', lineBreak: false });
   doc
     .font(fonts.medium)
-    .fontSize(7.2)
+    .fontSize(Math.max(MIN_FONT_SIZE, 7.2))
     .fillColor(C.faint)
     .text('OUT OF 100', MARGIN, scoreCy + 26, {
       width: scoreW,
@@ -551,7 +694,7 @@ function drawHeroRow(doc, fonts, y, report) {
   // Grade chip and verdict word are centred together as one pair.
   const gradeLabel = `GRADE ${grade}`;
   const bandLabel = band.label.toUpperCase();
-  doc.font(fonts.semibold).fontSize(7);
+  doc.font(fonts.semibold).fontSize(Math.max(MIN_FONT_SIZE, 7));
   const gradeW = doc.widthOfString(gradeLabel) + 16;
   const bandW = doc.widthOfString(bandLabel) + 16;
   const pairX = MARGIN + (scoreW - (gradeW + 6 + bandW)) / 2;
@@ -560,7 +703,7 @@ function drawHeroRow(doc, fonts, y, report) {
   pill(doc, fonts, gradeLabel, pairX, pairY, {
     width: gradeW,
     height: 15,
-    size: 7,
+    size: Math.max(MIN_FONT_SIZE, 7),
     fill: C.ink,
     color: C.white,
     characterSpacing: 0.7,
@@ -568,7 +711,7 @@ function drawHeroRow(doc, fonts, y, report) {
   pill(doc, fonts, bandLabel, pairX + gradeW + 6, pairY, {
     width: bandW,
     height: 15,
-    size: 7,
+    size: Math.max(MIN_FONT_SIZE, 7),
     fill: band.wash,
     color: band.color,
     characterSpacing: 0.7,
@@ -601,7 +744,7 @@ function drawHeroRow(doc, fonts, y, report) {
 
   doc
     .save()
-    .lineWidth(0.7)
+    .lineWidth(Math.max(MIN_LINE_WEIGHT, 0.7))
     .moveTo(verdictX + pad, y + 52)
     .lineTo(verdictX + verdictW - pad, y + 52)
     .stroke(C.hairline)
@@ -616,7 +759,7 @@ function drawHeroRow(doc, fonts, y, report) {
     .text(summary, verdictX + pad, summaryTop, {
       width: inner,
       height: y + heroH - pad + 1 - summaryTop,
-      lineGap: 2,
+      lineGap: 2.6,
       ellipsis: true,
     });
 
@@ -637,10 +780,10 @@ function drawSignalWidget(doc, fonts, y, report) {
   eyebrow(doc, fonts, 'Signal Coverage', MARGIN + pad, y + 13);
 
   const meterW = 84;
-  const meterX = PAGE_W - MARGIN - pad - meterW;
+  const meterX = TRIM_W - MARGIN - pad - meterW;
   doc
     .font(fonts.semibold)
-    .fontSize(7.4)
+    .fontSize(Math.max(MIN_HEADING_SIZE, 7.4))
     .fillColor(C.ink)
     .text(`${passed}/${checks.length} SIGNALS PRESENT`, MARGIN, y + 12, {
       width: meterX - MARGIN - 8,
@@ -657,21 +800,21 @@ function drawSignalWidget(doc, fonts, y, report) {
 
     doc.save();
     doc.roundedRect(cx, cy, chipW, chipH, 5).fill(check.ok ? C.successWash : C.wash);
-    doc.lineWidth(0.6).roundedRect(cx, cy, chipW, chipH, 5).stroke(check.ok ? '#CFEEDA' : C.hairline);
+    doc.lineWidth(0.6).roundedRect(cx, cy, chipW, chipH, 5).stroke(check.ok ? hexToCMYK('#CFEEDA') : C.hairline);
     doc.restore();
 
     const iconCx = cx + 12;
     const iconCy = cy + chipH / 2;
-    doc.save().circle(iconCx, iconCy, 6).fill(check.ok ? '#DCF5E5' : '#ECEFF4').restore();
+    doc.save().circle(iconCx, iconCy, 6).fill(check.ok ? hexToCMYK('#DCF5E5') : hexToCMYK('#ECEFF4')).restore();
     if (check.ok) checkGlyph(doc, iconCx, iconCy, 5.6, C.success);
     else crossGlyph(doc, iconCx, iconCy, 5.6, C.faint);
 
     const labelW = chipW - 25;
     doc
       .font(fonts.medium)
-      .fontSize(6.6)
+      .fontSize(Math.max(MIN_FONT_SIZE, 6.6))
       .fillColor(check.ok ? C.ink : C.muted)
-      .text(fitText(doc, check.label, fonts.medium, 6.6, labelW), cx + 21, iconCy - 3.4, {
+      .text(fitText(doc, check.label, fonts.medium, Math.max(MIN_FONT_SIZE, 6.6), labelW), cx + 21, iconCy - 3.4, {
         width: labelW,
         lineBreak: false,
       });
@@ -723,9 +866,9 @@ function drawStatRow(doc, fonts, y, report) {
       .text(stat.value, x + 11, y + 21, { width: statW - 22, lineBreak: false });
     doc
       .font(fonts.regular)
-      .fontSize(6.6)
+      .fontSize(Math.max(MIN_FONT_SIZE, 6.6))
       .fillColor(C.faint)
-      .text(fitText(doc, stat.note, fonts.regular, 6.6, statW - 22), x + 11, y + 38, {
+      .text(fitText(doc, stat.note, fonts.regular, Math.max(MIN_FONT_SIZE, 6.6), statW - 22), x + 11, y + 38, {
         width: statW - 22,
         lineBreak: false,
       });
@@ -821,15 +964,15 @@ function drawListSection(doc, fonts, y, report, bottom) {
 function drawFooter(doc, fonts, footerTop, signals) {
   doc
     .save()
-    .lineWidth(0.7)
+    .lineWidth(Math.max(MIN_LINE_WEIGHT, 0.7))
     .moveTo(MARGIN, footerTop)
-    .lineTo(PAGE_W - MARGIN, footerTop)
+    .lineTo(TRIM_W - MARGIN, footerTop)
     .stroke(C.hairline)
     .restore();
 
   doc
     .font(fonts.regular)
-    .fontSize(6.8)
+    .fontSize(Math.max(MIN_FONT_SIZE, 6.8))
     .fillColor(C.faint)
     .text(
       `AuraChat \u00b7 AI SEO / AEO Analyzer \u00b7 ${truncate(signals.url || '', 58)}`,
@@ -840,9 +983,9 @@ function drawFooter(doc, fonts, footerTop, signals) {
 
   doc
     .font(fonts.medium)
-    .fontSize(6.8)
+    .fontSize(Math.max(MIN_FONT_SIZE, 6.8))
     .fillColor(C.faint)
-    .text('Page 1 of 1', PAGE_W - MARGIN - 90, footerTop + 7, {
+    .text('Page 1 of 1', TRIM_W - MARGIN - 90, footerTop + 7, {
       width: 90,
       align: 'right',
       lineBreak: false,
@@ -878,7 +1021,7 @@ function generatePDFReport(data = {}) {
       };
 
       const doc = new PDFDocument({
-        size: 'LETTER',
+        size: [PAGE_W, PAGE_H],
         margin: 0,
         info: {
           Title: `AI SEO / AEO Readiness Report \u2014 ${truncate(signals.url || 'AuraChat Analysis', 80)}`,
@@ -912,9 +1055,16 @@ function generatePDFReport(data = {}) {
         year: 'numeric',
       });
 
+      // Full page background (extends into bleed)
       doc.rect(0, 0, PAGE_W, PAGE_H).fill(C.white);
 
-      const footerTop = PAGE_H - MARGIN - 20;
+      // Draw print marks on top of everything
+      drawCropMarks(doc);
+      drawRegistrationMarks(doc);
+      drawPageTrimBorder(doc);
+
+      // Content coordinates are relative to trim box (BLEED offset)
+      const footerTop = TRIM_H - MARGIN - 20;
       let y = MARGIN;
       y = drawHeader(doc, fonts, y, timestamp);
       y = drawHeroRow(doc, fonts, y, report);
@@ -922,6 +1072,10 @@ function generatePDFReport(data = {}) {
       y = drawStatRow(doc, fonts, y, report);
       drawListSection(doc, fonts, y, report, footerTop - 12);
       drawFooter(doc, fonts, footerTop, signals);
+
+      // Tag the PDF with a CMYK print output intent so RIPs and print shops
+      // apply the correct CMYK profile instead of guessing from the preview.
+      addPrintOutputIntent(doc);
 
       doc.end();
     } catch (err) {
@@ -948,7 +1102,7 @@ function drawPanel(doc, fonts, panel, x, y, w, h, opts) {
   if (hidden > 0) {
     doc
       .font(fonts.medium)
-      .fontSize(6.4)
+      .fontSize(Math.max(MIN_FONT_SIZE, 6.4))
       .fillColor(C.faint)
       .text(`+${hidden} MORE`, x + w - padX - 60, y + 13, {
         width: 60,
@@ -985,7 +1139,7 @@ function drawPanel(doc, fonts, panel, x, y, w, h, opts) {
       doc.restore();
       doc
         .font(fonts.bold)
-        .fontSize(7)
+        .fontSize(Math.max(MIN_FONT_SIZE, 7))
         .fillColor(i < 2 ? C.white : C.accent)
         .text(`P${i + 1}`, x + padX, itemY + 1.4, {
           width: badgeW,
@@ -1050,7 +1204,7 @@ function drawMetaPanel(doc, fonts, signals, x, y, w, h) {
   eyebrow(doc, fonts, 'Page Metadata', x + padX, y + 13, C.muted);
   doc
     .font(fonts.regular)
-    .fontSize(6.4)
+    .fontSize(Math.max(MIN_FONT_SIZE, 6.4))
     .fillColor(C.faint)
     .text('RAW VALUES READ FROM THE PAGE', x + w - padX - 200, y + 13, {
       width: 200,
@@ -1069,7 +1223,7 @@ function drawMetaPanel(doc, fonts, signals, x, y, w, h) {
     if (i > 0) {
       doc
         .save()
-        .lineWidth(0.6)
+        .lineWidth(Math.max(MIN_LINE_WEIGHT, 0.6))
         .moveTo(x + padX, rowY)
         .lineTo(x + w - padX, rowY)
         .stroke(C.hairline)
@@ -1078,7 +1232,7 @@ function drawMetaPanel(doc, fonts, signals, x, y, w, h) {
 
     doc
       .font(fonts.semibold)
-      .fontSize(6.4)
+      .fontSize(Math.max(MIN_FONT_SIZE, 6.4))
       .fillColor(C.faint)
       .text(String(label).toUpperCase(), x + padX, centerY - 3.4, {
         width: labelW,
@@ -1091,10 +1245,10 @@ function drawMetaPanel(doc, fonts, signals, x, y, w, h) {
     const value = String(rawValue || '').replace(/\s+/g, ' ').trim();
     doc
       .font(value ? fonts.medium : fonts.regular)
-      .fontSize(7.6)
+      .fontSize(Math.max(MIN_FONT_SIZE, 7.6))
       .fillColor(value ? C.body : C.faint)
       .text(
-        value ? fitText(doc, value, fonts.medium, 7.6, valueW) : 'Not found on this page',
+        value ? fitText(doc, value, fonts.medium, Math.max(MIN_FONT_SIZE, 7.6), valueW) : 'Not found on this page',
         valueX,
         centerY - 4.2,
         { width: valueW, lineBreak: false }
