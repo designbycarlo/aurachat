@@ -334,6 +334,25 @@
     .modal .auth-submit:disabled { opacity: 0.6; cursor: not-allowed; }
     .modal .auth-err { display: none; padding: 10px 12px; border-radius: 10px; background: rgba(248,113,113,0.14); color: var(--danger); font-size: 13px; }
     .modal .auth-err.show { display: block; }
+    .modal .auth-divider {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .modal .auth-divider::before,
+    .modal .auth-divider::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--line);
+    }
 
     /* ---------- Scroll-reveal widgets ---------- */
     .widget {
@@ -983,6 +1002,19 @@
       white-space: nowrap;
     }
     .saved-item .saved-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .saved-item .saved-logo {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
     .saved-item .saved-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .saved-item .pdf-btn { padding: 8px 12px; font-size: 12.5px; }
     @media (max-width: 900px) {
@@ -1240,7 +1272,8 @@
         </div>
         <button type="submit" class="auth-submit" id="loginSubmit">Log in</button>
       </form>
-      <form id="signupForm" hidden>
+      <div class="auth-divider"><span>or</span></div>
+      <form id="signupForm">
         <div class="field">
           <label for="signupEmail">Email</label>
           <input type="email" id="signupEmail" autocomplete="email" required />
@@ -1363,6 +1396,25 @@
       if (score >= 55) return { label: 'Developing', color: '#facc15', soft: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.3)' };
       if (score >= 40) return { label: 'Needs Work', color: '#fb923c', soft: 'rgba(251,146,60,0.12)', border: 'rgba(251,146,60,0.3)' };
       return { label: 'Critical', color: '#f87171', soft: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)' };
+    }
+
+    function getSiteName(url) {
+      if (!url) return '';
+      try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+    }
+    function getInitials(name) {
+      if (!name) return '?';
+      const tlds = ['com','org','net','io','co','edu','gov','ai','dev','app','blog','site','xyz','info','biz'];
+      const words = name.split(/[\s._-]+/).filter(Boolean).filter((w) => !tlds.includes(w.toLowerCase()));
+      if (!words.length) return (name.slice(0, 2) || '?').toUpperCase();
+      if (words.length === 1) return words[0].slice(0, 2).toUpperCase() || '?';
+      return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+    }
+    function getLogoColor(name) {
+      const colors = ['#4f46e5', '#7c3aed', '#facc15', '#fb923c', '#38bdf8', '#4ade80', '#f87171'];
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h += name.charCodeAt(i);
+      return colors[h % colors.length];
     }
 
     const ICONS = {
@@ -1670,13 +1722,9 @@
       const tabs = authModal.querySelectorAll('.modal-tab');
       tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
       if (tab === 'login') {
-        loginForm.hidden = false;
-        signupForm.hidden = true;
         document.getElementById('authTitle').textContent = 'Welcome back';
         document.getElementById('authSub').textContent = 'Log in to save your personalized reports.';
       } else {
-        loginForm.hidden = true;
-        signupForm.hidden = false;
         document.getElementById('authTitle').textContent = 'Create account';
         document.getElementById('authSub').textContent = 'Sign up to save and track your reports.';
       }
@@ -2028,13 +2076,17 @@
             const sig = report.signals || {};
             const score = report.score ?? 0;
             const band = scoreBand(score);
+            const siteName = r.title || sig.title || getSiteName(r.url || sig.url) || 'Untitled';
+            const initials = getInitials(siteName);
+            const logoColor = getLogoColor(siteName);
             const item = document.createElement('div');
             item.className = 'saved-item';
             const date = r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
             item.innerHTML = `
               <div class="saved-score" style="background:${band.soft};color:${band.color}">${score}</div>
+              <div class="saved-logo" style="background:${logoColor}">${initials}</div>
               <div class="saved-meta">
-                <span class="saved-url">${sig.url || sig.title || 'Untitled'}</span>
+                <span class="saved-url">${siteName}</span>
                 <span class="saved-date">${date}</span>
               </div>
               <div class="saved-actions">

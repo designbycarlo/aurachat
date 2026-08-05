@@ -122,6 +122,7 @@ function addReport(userId, report) {
     userId,
     createdAt: Date.now(),
     url: String(report.signals?.url || ''),
+    title: String(report.signals?.title || ''),
     score: report.score ?? 0,
     grade: report.grade || '--',
     report,
@@ -135,7 +136,7 @@ function listReports(userId) {
   return load().reports
     .filter((r) => r.userId === userId)
     .sort((a, b) => b.createdAt - a.createdAt)
-    .map(({ id, createdAt, url, score, grade }) => ({ id, createdAt, url, score, grade }));
+    .map(({ id, createdAt, url, title, score, grade }) => ({ id, createdAt, url, title, score, grade }));
 }
 
 function getReport(userId, reportId) {
