@@ -203,13 +203,24 @@
     }
     .nav-user .email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     @media (max-width: 620px) {
+      .topnav { gap: 12px; padding: 14px 0; }
       .nav-brand svg { display: none; }
+      .nav-links { gap: 4px; padding: 3px; }
+      .nav-link { padding: 7px 12px; font-size: 12px; }
       .nav-user .email { display: none; }
-      .nav-link { padding: 8px 12px; font-size: 12px; }
+      .nav-auth { gap: 8px; }
+      .nav-btn { padding: 8px 14px; font-size: 12px; }
+    }
+    @media (max-width: 480px) {
+      .topnav { gap: 10px; padding: 12px 0; }
+      .nav-links { gap: 3px; padding: 2px; }
+      .nav-link { padding: 6px 10px; font-size: 11px; }
+      .nav-auth { gap: 6px; }
+      .nav-btn { padding: 7px 12px; font-size: 11px; }
     }
 
     /* ---------- Views ---------- */
-    .view { display: none; width: 100%; max-width: 920px; }
+    .view { display: none; width: 100%; max-width: 920px; margin-top: 24px; }
     .view.active { display: block; }
 
     /* ---------- Auth modal ---------- */
@@ -259,7 +270,7 @@
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 4px;
-      margin-bottom: 16px;
+      margin-bottom: 24px;
     }
     .modal-tab {
       flex: 1;
@@ -287,6 +298,27 @@
       width: 100%;
     }
     .modal input:focus { border-color: var(--accent); }
+    .modal .pw-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .modal .pw-wrap input { flex: 1; }
+    .modal .pw-toggle {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal .pw-toggle:hover { color: var(--text); }
+    .modal .pw-toggle svg { width: 18px; height: 18px; }
+    .modal .pw-wrap input { padding-right: 40px; }
     .modal .auth-submit {
       margin-top: 4px;
       width: 100%;
@@ -772,10 +804,14 @@
 
     /* Responsive widget layout (declared after the widget rules so these win) */
     @media (max-width: 900px) {
+      body { padding-top: 12px; }
+      .view { margin-top: 20px; }
       .w-score, .w-summary { grid-column: span 12; }
       .signal-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 620px) {
+      body { padding-top: 16px; }
+      .view { margin-top: 24px; }
       .w-half { grid-column: span 12; }
       .stat { grid-column: span 6; }
       .signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -783,7 +819,10 @@
       .pdf-btn { flex: 1; }
     }
     @media (max-width: 480px) {
+      body { padding-top: 20px; }
+      .view { margin-top: 20px; }
       .widget { padding: 14px; }
+      .w-signals { padding-top: 50px; }
       .gauge { width: 120px; height: 120px; }
       .gauge-value { font-size: 36px; }
       .stat-value { font-size: 22px; }
@@ -1192,7 +1231,12 @@
         </div>
         <div class="field">
           <label for="loginPassword">Password</label>
-          <input type="password" id="loginPassword" autocomplete="current-password" required />
+          <div class="pw-wrap">
+            <input type="password" id="loginPassword" autocomplete="current-password" required />
+            <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePw(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
         </div>
         <button type="submit" class="auth-submit" id="loginSubmit">Log in</button>
       </form>
@@ -1203,7 +1247,12 @@
         </div>
         <div class="field">
           <label for="signupPassword">Password</label>
-          <input type="password" id="signupPassword" autocomplete="new-password" minlength="8" required />
+          <div class="pw-wrap">
+            <input type="password" id="signupPassword" autocomplete="new-password" minlength="8" required />
+            <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePw(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
           <span class="d3-note">At least 8 characters.</span>
         </div>
         <button type="submit" class="auth-submit" id="signupSubmit">Create account</button>
@@ -1238,6 +1287,17 @@
       lastTouchEnd = now;
     }, { passive: false });
   })();
+
+    function togglePw(btn) {
+      const wrap = btn.closest('.pw-wrap');
+      const input = wrap.querySelector('input');
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      btn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+      btn.innerHTML = isPassword
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    }
 
     const form = document.getElementById('analyzeForm');
     const urlInput = document.getElementById('urlInput');
