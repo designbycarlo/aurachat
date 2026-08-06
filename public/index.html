@@ -96,7 +96,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 0 24px 24px;
+      padding: 0 max(24px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
     }
     .container {
       width: 100%;
@@ -823,13 +823,13 @@
 
     /* Responsive widget layout (declared after the widget rules so these win) */
     @media (max-width: 900px) {
-      body { padding-top: 12px; }
+      body { padding-top: calc(env(safe-area-inset-top) + 20px); }
       .view { margin-top: 20px; }
       .w-score, .w-summary { grid-column: span 12; }
       .signal-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 620px) {
-      body { padding-top: 16px; }
+      body { padding-top: calc(env(safe-area-inset-top) + 24px); }
       .view { margin-top: 24px; }
       .w-half { grid-column: span 12; }
       .stat { grid-column: span 6; }
@@ -838,7 +838,7 @@
       .pdf-btn { flex: 1; }
     }
     @media (max-width: 480px) {
-      body { padding-top: 20px; }
+      body { padding-top: calc(env(safe-area-inset-top) + 28px); }
       .view { margin-top: 20px; }
       .widget { padding: 14px; }
       .w-signals { padding-top: 50px; }
