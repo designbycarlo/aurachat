@@ -60,21 +60,8 @@ let mode = 'pending';
 let pool = null; // pg.Pool (production)
 let pglite = null; // PGlite instance (local/dev)
 
-// On first deploy, Render provisions the Postgres database asynchronously.
-// The DATABASE_URL env var may not be available immediately when the service
-// starts. In production, we retry until the database is ready or times out.
-// In non-production (local dev), a missing DATABASE_URL is fine — PGlite is
-// the expected fallback.
-async function waitForDatabaseURL(retries = 12, delayMs = 5000) {
-  if (process.env.DATABASE_URL) return;
-  if (process.env.NODE_ENV !== 'production') return;
-  for (let i = 0; i < retries; i++) {
-    console.log(`[db] DATABASE_URL not set yet (attempt ${i + 1}/${retries}); retrying in ${delayMs / 1000}s...`);
-    await new Promise((r) => setTimeout(r, delayMs));
-    if (process.env.DATABASE_URL) return;
-  }
-}
-
+// NODE_ENV is fixed for the process lifetime, so there is no point polling
+// for DATABASE_URL — if it isn't present at startup it won't appear later.
 function connect() {
   if (mode !== 'pending') return;
   const url = process.env.DATABASE_URL;
@@ -139,7 +126,6 @@ async function query(text, params = []) {
 }
 
 async function initDb() {
-  await waitForDatabaseURL();
   connect();
   // Run idempotent schema DDL.
   // pg can take multiple statements in one query; pglite handles one or many
@@ -223,7 +209,6 @@ async function runSqlFile(file) {
 }
 
 async function migrate({ dir = migrationsDir } = {}) {
-  await waitForDatabaseURL();
   connect();
   const done = await appliedVersions();
   const files = fs
