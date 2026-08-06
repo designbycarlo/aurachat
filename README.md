@@ -203,9 +203,9 @@ railway link
 railway up
 ```
 
-Set `OPENROUTER_API_KEY` as a Railway variable, and you're live. The `railway.toml` config handles the rest — build via Nixpacks, `npm start` on deploy, and a `/health` check.
+Set `OPENROUTER_API_KEY` as a Railway variable, then **add the Postgres add-on below** (it is required — see OOM note). The `railway.toml` config handles the rest: build via Nixpacks, `preDeployCommand` runs migrations, `npm start` on deploy, and a `/health` check.
 
-#### 🐘 Adding the Postgres add-on (required for accounts & saved reports)
+#### 🐘 Adding the Postgres add-on (REQUIRED — without it the deploy OOMs)
 
 AuraChat stores users, sessions, and saved reports in Postgres. On Railway this is a one-time, zero-config add-on:
 
@@ -213,7 +213,9 @@ AuraChat stores users, sessions, and saved reports in Postgres. On Railway this 
 2. Railway automatically injects a `DATABASE_URL` environment variable into the service — **you don't set it manually**, and you don't need to add it to your repo.
 3. Redeploy (Railway does this automatically once the database is linked).
 
-On first boot the app runs an idempotent schema migration (`CREATE TABLE IF NOT EXISTS` for `users`, `sessions`, `reports`, and `reset_tokens` with FK cascades), so a brand-new database self-initializes. **No `DATABASE_URL` ⇒ no persistence**: without the add-on, account, session, and report features return errors while analysis still works — so the add-on is effectively required for the auth/save flow.
+> ⚠️ **Why this add-on is mandatory:** the app uses `DATABASE_URL` for its database. If it's absent, the app would otherwise fall back to PGlite (a full Postgres compiled to WASM that runs *inside the process*) — that ~100 MB+ engine **OOM-killed the Railway free dyno**. PGlite is now opt-in (local dev only), so a production deploy *without* `DATABASE_URL` instead **fails fast with a clear error** rather than crashing on memory. The fix is simply this add-on: once `DATABASE_URL` exists, the app uses the lightweight `pg` client (`pool max: 2`) and never loads PGlite.
+
+On deploy, `preDeployCommand = "node migrate.js"` runs the versioned migrations (idempotent, tracked in `schema_migrations`) and the server boots. A brand-new database self-initializes on first run.
 
 > 💡 **Why Postgres?** The earlier JSON file store was wiped on every Railway redeploy (ephemeral filesystem) and couldn't be shared across multiple instances. Postgres makes user data survive deploys and scale horizontally.
 
