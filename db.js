@@ -16,6 +16,12 @@
 
 const fs = require('fs');
 const path = require('path');
+const dns = require('dns');
+
+// Prefer IPv4 A records when resolving the database host. On IPv4-only or
+// IPv6-unroutable hosts (e.g. Render free tier), a hostname that resolves to an
+// IPv6 AAAA record otherwise throws ENETUNREACH before pg can fall back to IPv4.
+dns.setDefaultResultOrder('ipv4first');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
