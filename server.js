@@ -7,6 +7,7 @@ const { createOpenAI } = require('@ai-sdk/openai');
 const { generateText } = require('ai');
 const { generatePDFReport } = require('./generate-pdf');
 const store = require('./data-store');
+const db = require('./db');
 
 const app = express();
 app.set('trust proxy', 1); // Respect X-Forwarded-For so rate limits key on the real client IP
@@ -406,9 +407,15 @@ const PORT = process.env.PORT || 3000;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const token = tokenFromRequest(req);
-  const user = token ? store.userForToken(token) : null;
+  let user = null;
+  try {
+    user = token ? await store.userForToken(token) : null;
+  } catch (err) {
+    console.error('requireAuth error:', err);
+    return res.status(500).json({ error: 'Internal error' });
+  }
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -421,7 +428,7 @@ function publicUser(user) {
   return { id: user.id, email: user.email, createdAt: user.createdAt };
 }
 
-app.post('/api/auth/register', registerLimiter, (req, res) => {
+app.post('/api/auth/register', registerLimiter, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   if (!EMAIL_RE.test(email)) {
@@ -430,96 +437,155 @@ app.post('/api/auth/register', registerLimiter, (req, res) => {
   if (password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
-  if (store.findByEmail(email)) {
-    return res.status(409).json({ error: 'An account with that email already exists' });
+  try {
+    if (await store.findByEmail(email)) {
+      return res.status(409).json({ error: 'An account with that email already exists' });
+    }
+    const user = await store.createUser(email, password);
+    const token = await store.createSession(user.id);
+    setAuthCookie(res, req, token);
+    res.status(201).json({ user: publicUser(user) });
+  } catch (err) {
+    console.error('register error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
-  const user = store.createUser(email, password);
-  const token = store.createSession(user.id);
-  setAuthCookie(res, req, token);
-  res.status(201).json({ user: publicUser(user) });
 });
 
-app.post('/api/auth/login', loginLimiter, (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
-  const user = store.findByEmail(email);
-  if (!user || !store.safeEqual(store.hashPassword(password, user.salt), user.passHash)) {
-    return res.status(401).json({ error: 'Invalid email or password' });
+  try {
+    const user = await store.findByEmail(email);
+    if (!user || !store.safeEqual(store.hashPassword(password, user.salt), user.passHash)) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    const token = await store.createSession(user.id);
+    setAuthCookie(res, req, token);
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error('login error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
-  const token = store.createSession(user.id);
-  setAuthCookie(res, req, token);
-  res.json({ user: publicUser(user) });
 });
 
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', async (req, res) => {
   const token = tokenFromRequest(req);
-  if (token) store.destroySession(token);
+  if (token) {
+    try {
+      await store.destroySession(token);
+    } catch (err) {
+      console.error('logout error:', err);
+    }
+  }
   clearAuthCookie(res, req);
   res.json({ ok: true });
 });
 
-app.get('/api/auth/me', (req, res) => {
-  const user = tokenFromRequest(req) ? store.userForToken(tokenFromRequest(req)) : null;
-  if (!user) return res.status(401).json({ error: 'Not authenticated' });
-  res.json({ user: publicUser(user) });
+app.get('/api/auth/me', async (req, res) => {
+  const token = tokenFromRequest(req);
+  try {
+    const user = token ? await store.userForToken(token) : null;
+    if (!user) return res.status(401).json({ error: 'Not authenticated' });
+    res.json({ user: publicUser(user) });
+  } catch (err) {
+    console.error('me error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
 });
 
-app.post('/api/auth/reset/request', resetLimiter, (req, res) => {
+app.post('/api/auth/reset/request', resetLimiter, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
     return res.status(400).json({ error: 'Please provide a valid email address' });
   }
-  const token = store.createResetToken(email);
-  if (!token) {
-    return res.json({ ok: true, message: 'If that email exists, a reset link will be sent.' });
+  try {
+    const token = await store.createResetToken(email);
+    if (!token) {
+      return res.json({ ok: true, message: 'If that email exists, a reset link will be sent.' });
+    }
+    res.json({ ok: true, resetToken: token });
+  } catch (err) {
+    console.error('reset request error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
-  res.json({ ok: true, resetToken: token });
 });
 
-app.post('/api/auth/reset/confirm', (req, res) => {
+app.post('/api/auth/reset/confirm', async (req, res) => {
   const token = String(req.body?.token || '').trim();
   const password = String(req.body?.password || '');
   if (!token || password.length < 8) {
     return res.status(400).json({ error: 'Token and password (min 8 chars) are required' });
   }
-  const user = store.consumeResetToken(token);
-  if (!user) {
-    return res.status(400).json({ error: 'Invalid or expired reset link' });
+  try {
+    const user = await store.consumeResetToken(token);
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+    await store.updatePassword(user.id, password);
+    const sessionToken = await store.createSession(user.id);
+    setAuthCookie(res, req, sessionToken);
+    res.json({ ok: true, user: publicUser(user) });
+  } catch (err) {
+    console.error('reset confirm error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
-  store.updatePassword(user.id, password);
-  const sessionToken = store.createSession(user.id);
-  setAuthCookie(res, req, sessionToken);
-  res.json({ ok: true, user: publicUser(user) });
 });
 
 /* Saved personalized reports — always tied to the authenticated user */
 
-app.post('/api/reports', requireAuth, (req, res) => {
+app.post('/api/reports', requireAuth, async (req, res) => {
   const report = req.body;
   if (!report || typeof report !== 'object' || !report.signals || typeof report.signals !== 'object') {
     return res.status(400).json({ error: 'Report data is required' });
   }
-  const saved = store.addReport(req.user.id, report);
-  res.status(201).json({ id: saved.id, createdAt: saved.createdAt });
-});
-
-app.get('/api/reports', requireAuth, (req, res) => {
-  res.json({ reports: store.listReports(req.user.id) });
-});
-
-app.get('/api/reports/:id', requireAuth, (req, res) => {
-  const rec = store.getReport(req.user.id, req.params.id);
-  if (!rec) return res.status(404).json({ error: 'Report not found' });
-  res.json({ report: rec.report });
-});
-
-app.delete('/api/reports/:id', requireAuth, (req, res) => {
-  if (!store.deleteReport(req.user.id, req.params.id)) {
-    return res.status(404).json({ error: 'Report not found' });
+  try {
+    const saved = await store.addReport(req.user.id, report);
+    res.status(201).json({ id: saved.id, createdAt: saved.created_at });
+  } catch (err) {
+    console.error('addReport error:', err);
+    res.status(500).json({ error: 'Internal error' });
   }
-  res.json({ ok: true });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`AI SEO/AEO Analyzer running at http://0.0.0.0:${PORT}`);
+app.get('/api/reports', requireAuth, async (req, res) => {
+  try {
+    res.json({ reports: await store.listReports(req.user.id) });
+  } catch (err) {
+    console.error('listReports error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
 });
+
+app.get('/api/reports/:id', requireAuth, async (req, res) => {
+  try {
+    const rec = await store.getReport(req.user.id, req.params.id);
+    if (!rec) return res.status(404).json({ error: 'Report not found' });
+    res.json({ report: rec.report });
+  } catch (err) {
+    console.error('getReport error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+app.delete('/api/reports/:id', requireAuth, async (req, res) => {
+  try {
+    if (!(await store.deleteReport(req.user.id, req.params.id))) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('deleteReport error:', err);
+    res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+(async () => {
+  try {
+    await db.initDb();
+  } catch (err) {
+    console.error('Failed to initialize database; continuing without persistence:', err);
+  }
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`AI SEO/AEO Analyzer running at http://0.0.0.0:${PORT}`);
+  });
+})();

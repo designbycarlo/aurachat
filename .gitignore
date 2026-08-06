@@ -52,5 +52,7 @@ build/
 tmp/
 temp/
 .kilo/
-# User data (accounts, sessions, saved reports)
+# User data (accounts, sessions, saved reports) — now in Postgres.
+# Legacy JSON store (superseded) and local embedded PGlite dev DB:
 data/
+data-pglite/

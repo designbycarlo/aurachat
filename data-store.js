@@ -1,45 +1,22 @@
-/* Lightweight file-backed JSON store for user accounts, sessions and saved
- * reports. No external database dependency, so AuraChat keeps deploying
- * anywhere (Railway, Render, a $5 VPS) with zero extra setup.
+/* Postgres-backed store for user accounts, sessions and saved reports.
  *
- * Writes go to a temp file first and are then renamed, so a crash mid-write
- * can never corrupt the store.
+ * The previous version was a JSON file on the container filesystem, which
+ * Railway's ephemeral storage wiped on every redeploy and which could not be
+ * shared across instances. Everything here now lives in Postgres (Railway's
+ * managed add-on via DATABASE_URL, or embedded PGlite for local dev — see
+ * db.js). All functions are async and use the unified query() interface.
+ *
+ * Passwords are still hashed with scrypt + per-user salt; only the persistence
+ * layer changed. Reset tokens and sessions are server-side (no longer in a
+ * cookie-decoded blob) and expire via expires_at columns.
  */
 
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
-
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
-const EMPTY = { users: [], sessions: [], reports: [], resetTokens: [] };
+const db = require('./db');
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 const SCRYPT_KEYLEN = 64;
-
-let db = null;
-
-function load() {
-  if (db) return db;
-  try {
-    db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-  } catch {
-    db = { users: [], sessions: [], reports: [] };
-  }
-  for (const key of Object.keys(EMPTY)) {
-    if (!Array.isArray(db[key])) db[key] = [];
-  }
-  return db;
-}
-
-function persist() {
-  load();
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-  fs.renameSync(tmp, DB_FILE);
-}
 
 function hashPassword(password, salt) {
   return crypto.scryptSync(password, salt, SCRYPT_KEYLEN).toString('hex');
@@ -57,133 +34,148 @@ function newToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Map a Postgres row (snake_case columns) to the app's user object
+// (camelCase keys: id, email, salt, passHash, createdAt).
+function rowToUser(row) {
+  if (!row) return row;
+  return {
+    id: row.id,
+    email: row.email,
+    salt: row.salt,
+    passHash: row.pass_hash,
+    createdAt: Number(row.created_at),
+  };
+}
+
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a));
   const bb = Buffer.from(String(b));
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
 }
 
-function findByEmail(email) {
-  return load().users.find((u) => u.email === email) || null;
+async function findByEmail(email) {
+  const res = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+  return rowToUser(res.rows[0] || null);
 }
 
-function findById(id) {
-  return load().users.find((u) => u.id === id) || null;
+async function findById(id) {
+  const res = await db.query('SELECT * FROM users WHERE id = $1', [id]);
+  return rowToUser(res.rows[0] || null);
 }
 
-function createUser(email, password) {
+async function createUser(email, password) {
   const salt = newSalt();
   const user = {
     id: newId(),
     email,
     salt,
-    passHash: hashPassword(password, salt),
-    createdAt: Date.now(),
+    pass_hash: hashPassword(password, salt),
+    created_at: Date.now(),
   };
-  load().users.push(user);
-  persist();
+  await db.query(
+    'INSERT INTO users (id, email, salt, pass_hash, created_at) VALUES ($1, $2, $3, $4, $5)',
+    [user.id, user.email, user.salt, user.pass_hash, user.created_at]
+  );
   return user;
 }
 
-function createSession(userId) {
+async function createSession(userId) {
   const token = newToken();
-  load().sessions.push({
-    token,
-    userId,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + SESSION_TTL_MS,
-  });
-  persist();
+  const now = Date.now();
+  await db.query(
+    'INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, userId, now, now + SESSION_TTL_MS]
+  );
   return token;
 }
 
-function userForToken(token) {
+async function userForToken(token) {
   if (!token) return null;
-  const session = load().sessions.find((s) => s.token === token);
+  const sres = await db.query('SELECT * FROM sessions WHERE token = $1', [token]);
+  const session = sres.rows[0];
   if (!session) return null;
-  if (session.expiresAt < Date.now()) {
-    destroySession(token);
+  if (session.expires_at < Date.now()) {
+    await destroySession(token);
     return null;
   }
-  return findById(session.userId);
+  return findById(session.user_id);
 }
 
-function destroySession(token) {
-  const sessions = load().sessions;
-  const i = sessions.findIndex((s) => s.token === token);
-  if (i >= 0) {
-    sessions.splice(i, 1);
-    persist();
-  }
+async function destroySession(token) {
+  await db.query('DELETE FROM sessions WHERE token = $1', [token]);
 }
 
-function addReport(userId, report) {
+async function addReport(userId, report) {
   const rec = {
     id: newId(),
     userId,
-    createdAt: Date.now(),
+    created_at: Date.now(),
     url: String(report.signals?.url || ''),
     title: String(report.signals?.title || ''),
     score: report.score ?? 0,
     grade: report.grade || '--',
     report,
   };
-  load().reports.push(rec);
-  persist();
+  await db.query(
+    `INSERT INTO reports (id, user_id, created_at, url, title, score, grade, report)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [rec.id, rec.userId, rec.created_at, rec.url, rec.title, rec.score, rec.grade, JSON.stringify(rec.report)]
+  );
   return rec;
 }
 
-function listReports(userId) {
-  return load().reports
-    .filter((r) => r.userId === userId)
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .map(({ id, createdAt, url, title, score, grade }) => ({ id, createdAt, url, title, score, grade }));
+async function listReports(userId) {
+  const res = await db.query(
+    'SELECT id, created_at, url, title, score, grade FROM reports WHERE user_id = $1 ORDER BY created_at DESC',
+    [userId]
+  );
+  return res.rows.map(({ id, created_at, url, title, score, grade }) => ({
+    id,
+    createdAt: Number(created_at),
+    url,
+    title,
+    score,
+    grade,
+  }));
 }
 
-function getReport(userId, reportId) {
-  return load().reports.find((r) => r.id === reportId && r.userId === userId) || null;
+async function getReport(userId, reportId) {
+  const res = await db.query('SELECT report FROM reports WHERE id = $1 AND user_id = $2', [reportId, userId]);
+  return res.rows[0] || null;
 }
 
-function deleteReport(userId, reportId) {
-  const reports = load().reports;
-  const i = reports.findIndex((r) => r.id === reportId && r.userId === userId);
-  if (i < 0) return false;
-  reports.splice(i, 1);
-  persist();
-  return true;
+async function deleteReport(userId, reportId) {
+  const res = await db.query('DELETE FROM reports WHERE id = $1 AND user_id = $2', [reportId, userId]);
+  return res.rowCount > 0;
 }
 
-function createResetToken(email) {
-  const user = findByEmail(email);
+async function createResetToken(email) {
+  const user = await findByEmail(email);
   if (!user) return null;
   const token = crypto.randomBytes(32).toString('hex');
-  load().resetTokens.push({
-    token,
-    userId: user.id,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + RESET_TTL_MS,
-  });
-  persist();
+  const now = Date.now();
+  await db.query(
+    'INSERT INTO reset_tokens (token, user_id, created_at, expires_at) VALUES ($1, $2, $3, $4)',
+    [token, user.id, now, now + RESET_TTL_MS]
+  );
   return token;
 }
 
-function consumeResetToken(token) {
-  const tokens = load().resetTokens;
-  const idx = tokens.findIndex((t) => t.token === token);
-  if (idx < 0) return null;
-  const resetToken = tokens[idx];
-  tokens.splice(idx, 1);
-  persist();
-  if (resetToken.expiresAt < Date.now()) return null;
-  return findById(resetToken.userId);
+async function consumeResetToken(token) {
+  const tres = await db.query('SELECT * FROM reset_tokens WHERE token = $1', [token]);
+  const resetToken = tres.rows[0];
+  if (!resetToken) return null;
+  await db.query('DELETE FROM reset_tokens WHERE token = $1', [token]);
+  if (resetToken.expires_at < Date.now()) return null;
+  return findById(resetToken.user_id);
 }
 
-function updatePassword(userId, password) {
-  const user = findById(userId);
+async function updatePassword(userId, password) {
+  const user = await findById(userId);
   if (!user) return false;
-  user.salt = newSalt();
-  user.passHash = hashPassword(password, user.salt);
-  persist();
+  const salt = newSalt();
+  const passHash = hashPassword(password, salt);
+  await db.query('UPDATE users SET salt = $1, pass_hash = $2 WHERE id = $3', [salt, passHash, userId]);
   return true;
 }
 
