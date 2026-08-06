@@ -1769,7 +1769,6 @@
     const authBack = document.getElementById('authBack');
 
     let resetTokenValue = null;
-    let authToken = localStorage.getItem('aura_token') || null;
     let currentUser = null;
 
     function showAuthModal() {
@@ -1834,17 +1833,13 @@
     }
 
     async function checkSession() {
-      if (!authToken) { updateNavState(); return; }
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': 'Bearer ' + authToken }
-        });
+        const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
         if (!res.ok) throw new Error();
         const data = await res.json();
         currentUser = data.user;
       } catch {
-        authToken = null;
-        localStorage.removeItem('aura_token');
+        currentUser = null;
       }
       updateNavState();
     }
@@ -1872,9 +1867,7 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Login failed');
-        authToken = data.token;
         currentUser = data.user;
-        localStorage.setItem('aura_token', authToken);
         updateNavState();
         hideAuthModal();
         refreshDashboardIfActive();
@@ -1900,9 +1893,7 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Signup failed');
-        authToken = data.token;
         currentUser = data.user;
-        localStorage.setItem('aura_token', authToken);
         updateNavState();
         hideAuthModal();
         refreshDashboardIfActive();
@@ -1947,9 +1938,7 @@
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || 'Reset failed');
-          authToken = data.token;
           currentUser = data.user;
-          localStorage.setItem('aura_token', authToken);
           updateNavState();
           hideAuthModal();
           refreshDashboardIfActive();
@@ -1994,14 +1983,9 @@
 
     logoutBtnEl.addEventListener('click', async () => {
       try {
-        await fetch('/api/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + authToken }
-        });
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
       } catch { /* ignore */ }
-      authToken = null;
       currentUser = null;
-      localStorage.removeItem('aura_token');
       updateNavState();
       refreshDashboardIfActive();
     });
@@ -2022,10 +2006,8 @@
       try {
         const res = await fetch('/api/reports', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + authToken
-          },
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(lastResult)
         });
         if (!res.ok) {
@@ -2139,7 +2121,7 @@
     async function loadDashboardData() {
       try {
         const res = await fetch('/api/reports', {
-          headers: { 'Authorization': 'Bearer ' + authToken }
+          credentials: 'same-origin'
         });
         if (!res.ok) throw new Error();
         const data = await res.json();
@@ -2275,7 +2257,7 @@
     async function loadSavedReport(id) {
       try {
         const res = await fetch('/api/reports/' + id, {
-          headers: { 'Authorization': 'Bearer ' + authToken }
+          credentials: 'same-origin'
         });
         if (!res.ok) throw new Error();
         const data = await res.json();
@@ -2299,7 +2281,7 @@
       try {
         await fetch('/api/reports/' + id, {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + authToken }
+          credentials: 'same-origin'
         });
         await loadDashboardData();
       } catch { /* ignore */ }

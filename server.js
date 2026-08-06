@@ -9,8 +9,131 @@ const { generatePDFReport } = require('./generate-pdf');
 const store = require('./data-store');
 
 const app = express();
+app.set('trust proxy', 1); // Respect X-Forwarded-For so rate limits key on the real client IP
 app.use(express.json());
 app.use(express.static('public'));
+
+/* ------------------------------------------------------------------ *
+ * Minimal cookie parser (no extra dependency) so we can read the
+ * HttpOnly session cookie.
+ * ------------------------------------------------------------------ */
+function parseCookies(req, res, next) {
+  req.cookies = {};
+  const raw = req.headers.cookie;
+  if (raw) {
+    raw.split(';').forEach((part) => {
+      const idx = part.indexOf('=');
+      if (idx === -1) return;
+      const name = part.slice(0, idx).trim();
+      const value = part.slice(idx + 1).trim();
+      if (req.cookies[name]) return;
+      try {
+        req.cookies[name] = decodeURIComponent(value);
+      } catch {
+        req.cookies[name] = value;
+      }
+    });
+  }
+  next();
+}
+app.use(parseCookies);
+
+/* ------------------------------------------------------------------ *
+ * In-memory fixed-window rate limiter. Bounds brute-force / abuse on
+ * auth endpoints. Writes are tiny and short-lived, so an in-process map
+ * is sufficient; the cleanup timer is unref'd so it never holds the
+ * process open.
+ * ------------------------------------------------------------------ */
+const RATE_BUCKETS = new Map();
+
+function createRateLimiter({ windowMs, max, key }) {
+  const buckets = new Map();
+  const cleaner = setInterval(() => {
+    const now = Date.now();
+    for (const [k, b] of buckets) {
+      if (now - b.start > windowMs) buckets.delete(k);
+    }
+  }, Math.min(windowMs, 60000));
+  cleaner.unref();
+
+  return function rateLimit(req, res, next) {
+    const k = key(req);
+    const now = Date.now();
+    let bucket = buckets.get(k);
+    if (!bucket || now - bucket.start > windowMs) {
+      bucket = { start: now, count: 0 };
+      buckets.set(k, bucket);
+    }
+    bucket.count += 1;
+    const remaining = Math.max(0, max - bucket.count);
+    res.set('X-RateLimit-Limit', String(max));
+    res.set('X-RateLimit-Remaining', String(remaining));
+    if (bucket.count > max) {
+      const retry = Math.ceil((bucket.start + windowMs - now) / 1000);
+      res.set('Retry-After', String(retry));
+      return res.status(429).json({
+        error: 'Too many attempts, please try again later.',
+        retryAfter: retry,
+      });
+    }
+    next();
+  };
+}
+
+const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
+
+const loginLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 8, // attempts per IP + email
+  key: (req) => `${clientIp(req)}|login|${String(req.body?.email || '').trim().toLowerCase()}`,
+});
+const registerLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5, // new accounts per IP
+  key: (req) => `${clientIp(req)}|register`,
+});
+const resetLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 5, // reset requests per IP + email
+  key: (req) => `${clientIp(req)}|reset|${String(req.body?.email || '').trim().toLowerCase()}`,
+});
+
+/* ------------------------------------------------------------------ *
+ * Session cookie helpers — HttpOnly + SameSite=Lax (CSRF-resistant for
+ * same-origin requests), Secure on any TLS-terminated request.
+ * ------------------------------------------------------------------ */
+const COOKIE_NAME = 'aura_session';
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function isHttps(req) {
+  return req.secure || req.headers['x-forwarded-proto'] === 'https';
+}
+
+function setAuthCookie(res, req, token) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: isHttps(req),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: SESSION_TTL_MS,
+  });
+}
+
+function clearAuthCookie(res, req) {
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: isHttps(req),
+    sameSite: 'lax',
+    path: '/',
+  });
+}
+
+function tokenFromRequest(req) {
+  const cookie = req.cookies && req.cookies[COOKIE_NAME];
+  if (cookie) return cookie;
+  const header = req.headers.authorization || '';
+  return header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+}
 
 const openrouter = createOpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
@@ -284,8 +407,7 @@ const PORT = process.env.PORT || 3000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function requireAuth(req, res, next) {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  const token = tokenFromRequest(req);
   const user = token ? store.userForToken(token) : null;
   if (!user) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -299,7 +421,7 @@ function publicUser(user) {
   return { id: user.id, email: user.email, createdAt: user.createdAt };
 }
 
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', registerLimiter, (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   if (!EMAIL_RE.test(email)) {
@@ -313,10 +435,11 @@ app.post('/api/auth/register', (req, res) => {
   }
   const user = store.createUser(email, password);
   const token = store.createSession(user.id);
-  res.status(201).json({ user: publicUser(user), token });
+  setAuthCookie(res, req, token);
+  res.status(201).json({ user: publicUser(user) });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginLimiter, (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   const user = store.findByEmail(email);
@@ -324,25 +447,24 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
   const token = store.createSession(user.id);
-  res.json({ user: publicUser(user), token });
+  setAuthCookie(res, req, token);
+  res.json({ user: publicUser(user) });
 });
 
 app.post('/api/auth/logout', (req, res) => {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
+  const token = tokenFromRequest(req);
   if (token) store.destroySession(token);
+  clearAuthCookie(res, req);
   res.json({ ok: true });
 });
 
 app.get('/api/auth/me', (req, res) => {
-  const header = req.headers.authorization || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : null;
-  const user = token ? store.userForToken(token) : null;
+  const user = tokenFromRequest(req) ? store.userForToken(tokenFromRequest(req)) : null;
   if (!user) return res.status(401).json({ error: 'Not authenticated' });
   res.json({ user: publicUser(user) });
 });
 
-app.post('/api/auth/reset/request', (req, res) => {
+app.post('/api/auth/reset/request', resetLimiter, (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
     return res.status(400).json({ error: 'Please provide a valid email address' });
@@ -366,7 +488,8 @@ app.post('/api/auth/reset/confirm', (req, res) => {
   }
   store.updatePassword(user.id, password);
   const sessionToken = store.createSession(user.id);
-  res.json({ ok: true, token: sessionToken, user: publicUser(user) });
+  setAuthCookie(res, req, sessionToken);
+  res.json({ ok: true, user: publicUser(user) });
 });
 
 /* Saved personalized reports — always tied to the authenticated user */
