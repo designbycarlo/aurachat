@@ -1,0 +1,32 @@
+# Render deploy config (free tier).
+# Hosts the Node app on Render; the Postgres database lives on Supabase
+# (free tier) and is supplied via DATABASE_URL. The app uses standard `pg`
+# against DATABASE_URL and has no Render- or Railway-specific code, so this is
+# the only infra file needed.
+#
+# Deploy: push this repo to GitHub, then in Render -> New -> Blueprints ->
+# connect the repo. Render reads this file.
+#
+# Required env vars (set in Render dashboard, not here):
+#   DATABASE_URL      = Supabase Postgres connection string (see .env.example)
+#   OPENROUTER_API_KEY = your OpenRouter key (free at https://openrouter.ai/keys)
+
+services:
+  - type: web
+    name: aurachat
+    runtime: node
+    plan: free
+    # Nixpacks auto-detects the Node app; `npm install` then `npm start`.
+    buildCommand: npm install
+    # Run migrations once before the server starts (throwaway process, exits).
+    preDeployCommand: node migrate.js
+    startCommand: npm start
+    healthCheckPath: /health
+    # Render sets NODE_ENV=production and PORT automatically.
+    envVars:
+      - key: DATABASE_URL
+        sync: false # you paste the Supabase connection string in the dashboard
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production

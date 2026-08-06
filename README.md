@@ -190,34 +190,27 @@ Override the primary model with `OPENROUTER_MODEL` in your `.env`.
 
 ## ☁️ Deployment
 
-### Railway
+The app is a standard Express + `pg` service with **no host-specific code**, so it runs on any Node host. The recommended free setup is **Render (web service) + Supabase (Postgres)**.
 
-This repo is Railway-ready out of the box.
+### Render + Supabase (free)
 
-```bash
-# Install the Railway CLI
-npm i -g @railway/cli
+1. **Supabase** — create a free project. In the project, go to **Settings → Database → Connection string → URI**, copy the `postgresql://...` string (it includes password; keep it secret).
+2. **Render** — New → **Blueprint** → connect this GitHub repo. Render reads `render.yaml`: it builds with Nixpacks, runs `node migrate.js` as a pre-deploy step, and starts with `npm start` on the free tier.
+3. In the Render service's **Environment**, set:
+   - `DATABASE_URL` = the Supabase URI from step 1
+   - `OPENROUTER_API_KEY` = your free key from https://openrouter.ai/keys
+   (Render sets `NODE_ENV=production` and `PORT` automatically.)
+4. Deploy. The app connects to Supabase Postgres via the lightweight `pg` client and never loads PGlite in production.
 
-# Link and deploy
-railway link
-railway up
-```
+> 💡 **Why this avoids the OOM:** because `DATABASE_URL` is always present (Supabase is an external DB), the app uses the small `pg` pool (`max: 2`) and the in-process PGlite engine is never loaded. PGlite is opt-in and only used for local dev.
 
-Set `OPENROUTER_API_KEY` as a Railway variable, then **add the Postgres add-on below** (it is required — see OOM note). The `railway.toml` config handles the rest: build via Nixpacks, `preDeployCommand` runs migrations, `npm start` on deploy, and a `/health` check.
+> 💡 **Why Postgres?** The earlier JSON file store was wiped on every redeploy (ephemeral filesystem) and couldn't be shared across instances. Postgres makes user data survive deploys and scale horizontally.
 
-#### 🐘 Adding the Postgres add-on (REQUIRED — without it the deploy OOMs)
+### Railway (alternative)
 
-AuraChat stores users, sessions, and saved reports in Postgres. On Railway this is a one-time, zero-config add-on:
+Railway also works: push the repo and add a Postgres add-on (`New → Database → Add PostgreSQL`); Railway injects `DATABASE_URL` and `railway.toml` (if present) configures the build. The same `pg` + `DATABASE_URL` contract applies.
 
-1. In the Railway project, click **New → Database → Add PostgreSQL**.
-2. Railway automatically injects a `DATABASE_URL` environment variable into the service — **you don't set it manually**, and you don't need to add it to your repo.
-3. Redeploy (Railway does this automatically once the database is linked).
 
-> ⚠️ **Why this add-on is mandatory:** the app uses `DATABASE_URL` for its database. If it's absent, the app would otherwise fall back to PGlite (a full Postgres compiled to WASM that runs *inside the process*) — that ~100 MB+ engine **OOM-killed the Railway free dyno**. PGlite is now opt-in (local dev only), so a production deploy *without* `DATABASE_URL` instead **fails fast with a clear error** rather than crashing on memory. The fix is simply this add-on: once `DATABASE_URL` exists, the app uses the lightweight `pg` client (`pool max: 2`) and never loads PGlite.
-
-On deploy, `preDeployCommand = "node migrate.js"` runs the versioned migrations (idempotent, tracked in `schema_migrations`) and the server boots. A brand-new database self-initializes on first run.
-
-> 💡 **Why Postgres?** The earlier JSON file store was wiped on every Railway redeploy (ephemeral filesystem) and couldn't be shared across multiple instances. Postgres makes user data survive deploys and scale horizontally.
 
 ##### Local development (no Postgres install needed)
 
