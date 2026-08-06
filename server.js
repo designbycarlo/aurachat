@@ -86,7 +86,7 @@ const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
 /* ------------------------------------------------------------------ *\
  * Brute-force protection on auth endpoints.
  *
- * Lives in the database (not process memory) so it survives the Railway free
+ * Lives in the database (not process memory) so it survives the Render free
  * dyno's sleep/recycle — an in-memory map reset every restart, handing a
  * brute-forcer a fresh attempt budget. One row per (IP+email) bucket, refreshed
  * atomically on each hit. A 24h lazy prune keeps the table tiny.

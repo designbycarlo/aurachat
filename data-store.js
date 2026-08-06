@@ -1,9 +1,9 @@
 /* Postgres-backed store for user accounts, sessions and saved reports.
  *
  * The previous version was a JSON file on the container filesystem, which
- * Railway's ephemeral storage wiped on every redeploy and which could not be
- * shared across instances. Everything here now lives in Postgres (Railway's
- * managed add-on via DATABASE_URL, or embedded PGlite for local dev — see
+ * Render's ephemeral storage wiped on every redeploy and which could not be
+ * shared across instances. Everything here now lives in Postgres (Render's
+ * managed database via DATABASE_URL, or embedded PGlite for local dev — see
  * db.js). All functions are async and use the unified query() interface.
  *
  * Passwords are still hashed with scrypt + per-user salt; only the persistence

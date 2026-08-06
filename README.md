@@ -20,7 +20,7 @@ No frameworks. No build step. Just Node, Express, a sprinkle of AI magic — and
 - **🎨 Polished dark UI** — responsive, dependency-free, and ready to ship
 - **📱 Mobile zoom prevention** — pinch-to-zoom and gesture zooming are disabled on touch devices for a native-app feel
 - **📦 PWA ready** — installable web app with manifest, icons, and offline-capable structure
-- **🚀 One-command deploy** to Railway (or any Node host)
+- **🚀 One-command deploy** to Render (or any Node host)
 
 ---
 
@@ -34,8 +34,8 @@ No frameworks. No build step. Just Node, Express, a sprinkle of AI magic — and
 | LLM Gateway | [OpenRouter](https://openrouter.ai) (free tier) |
 | PDF         | [PDFKit](https://pdfkit.org)                    |
 | Frontend    | Vanilla HTML, CSS, and JS — zero build step     |
-| Database    | PostgreSQL (Railway add-on) — or embedded PGlite for local dev |
-| Deploy      | Railway (Nixpacks)                              |
+| Database    | PostgreSQL (Render managed) — or embedded PGlite for local dev |
+| Deploy      | Render (Nixpacks)                                              |
 
 ---
 
@@ -129,7 +129,7 @@ Generate a CSV export from analysis data.
 
 ### `GET /health`
 
-Returns `{ "status": "ok" }` — used by Railway for health checks.
+Returns `{ "status": "ok" }` — used by Render for health checks.
 
 ---
 
@@ -190,19 +190,18 @@ Override the primary model with `OPENROUTER_MODEL` in your `.env`.
 
 ## ☁️ Deployment
 
-The app is a standard Express + `pg` service with **no host-specific code**, so it runs on any Node host. The recommended free setup is **Render (web service) + Supabase (Postgres)**.
+The app is a standard Express + `pg` service with **no host-specific code**, so it runs on any Node host. The recommended free setup is **Render (web service + Postgres)**.
 
-### Render + Supabase (free)
+### Render + Render Postgres (free)
 
-1. **Supabase** — create a free project. In the project, go to **Settings → Database → Connection string → URI**, copy the `postgresql://...` string (it includes password; keep it secret).
-2. **Render** — New → **Blueprint** → connect this GitHub repo. Render reads `render.yaml`: it builds with Nixpacks, runs `node migrate.js` as a pre-deploy step, and starts with `npm start` on the free tier.
+1. Push this repo to GitHub.
+2. **Render** — New → **Blueprint** → connect this GitHub repo. Render reads `render.yaml` and provisions both the web service and a free Postgres database automatically.
 3. In the Render service's **Environment**, set:
-   - `DATABASE_URL` = the Supabase URI from step 1
-   - `OPENROUTER_API_KEY` = your free key from https://openrouter.ai/keys
-   (Render sets `NODE_ENV=production` and `PORT` automatically.)
-4. Deploy. The app connects to Supabase Postgres via the lightweight `pg` client and never loads PGlite in production.
+    - `OPENROUTER_API_KEY` = your free key from https://openrouter.ai/keys
+    (`DATABASE_URL` is auto-injected from the Render-managed Postgres database; `NODE_ENV` and `PORT` are set automatically.)
+4. Deploy. The app connects to Render Postgres via the lightweight `pg` client and never loads PGlite in production.
 
-> 💡 **Why this avoids the OOM:** because `DATABASE_URL` is always present (Supabase is an external DB), the app uses the small `pg` pool (`max: 2`) and the in-process PGlite engine is never loaded. PGlite is opt-in and only used for local dev.
+> 💡 **Why this avoids the OOM:** because `DATABASE_URL` is always present (Render Postgres is an external DB), the app uses the small `pg` pool (`max: 2`) and the in-process PGlite engine is never loaded. PGlite is opt-in and only used for local dev.
 
 > 💡 **Why Postgres?** The earlier JSON file store was wiped on every redeploy (ephemeral filesystem) and couldn't be shared across instances. Postgres makes user data survive deploys and scale horizontally.
 
@@ -247,7 +246,7 @@ aurachat/
 │   └── index.html         # Frontend UI (widget dashboard, dark theme, PWA)
 ├── fonts/                 # Geist variable font (self-hosted)
 ├── package.json           # Dependencies and scripts
-├── railway.toml           # Railway deployment config
+├── render.yaml           # Render deployment config
 ├── .env                   # Environment variables (not committed)
 └── .env.example           # Example environment file
 ```
@@ -261,9 +260,9 @@ aurachat/
 | `OPENROUTER_API_KEY`  | ✅ Yes   | —                                | Your OpenRouter API key              |
 | `OPENROUTER_MODEL`    | ❌ No    | `openai/gpt-oss-20b:free`        | Primary LLM model ID                 |
 | `PORT`                | ❌ No    | `3000`                           | Server port                          |
-| `DATABASE_URL`        | ❌*      | *(unset → embedded PGlite)*      | Postgres connection string (Railway injects this) |
+| `DATABASE_URL`        | ❌*      | *(unset → embedded PGlite)*      | Postgres connection string (Render injects this) |
 
-\* Required in production (via the Railway Postgres add-on); leave unset for local dev to use the embedded PGlite database.
+\* Required in production (via the Render managed Postgres); leave unset for local dev to use the embedded PGlite database.
 
 ---
 

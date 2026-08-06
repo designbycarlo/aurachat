@@ -1,6 +1,6 @@
 /* Database connection + schema bootstrap for AuraChat.
  *
- * Production (Railway): uses `pg` against the DATABASE_URL that Railway's
+ * Production (Render): uses `pg` against the DATABASE_URL that Render's
  * managed Postgres add-on injects automatically. This survives redeploys and
  * works across multiple instances because the data lives in the managed
  * database, not on the ephemeral container filesystem.
@@ -65,14 +65,14 @@ function connect() {
   const url = process.env.DATABASE_URL;
   // PGlite is a full Postgres compiled to WASM that runs INSIDE this process.
   // It works great for local dev but is heavy (~100MB+) and is the thing that
-  // OOM-killed the Railway free dyno when DATABASE_URL was absent. So it must
+  // OOM-killed the Render free tier when DATABASE_URL was absent. So it must
   // be OPT-IN: only used locally (NODE_ENV !== 'production') or when the
   // operator explicitly sets USE_PGLITE=1. In production, a missing
   // DATABASE_URL fails loud instead of silently loading PGlite and crashing.
   const wantPglite = !url && (process.env.USE_PGLITE === '1' || process.env.NODE_ENV !== 'production');
   if (url) {
     const { Pool } = require('pg');
-    // Free-tier Railway Postgres allows ~20 connections; the hobby dyno runs
+    // Free-tier Render Postgres allows ~20 connections; the hobby dyno runs
     // a single node process, so 2 is plenty and leaves headroom for other
     // services on the shared instance. Idle clients are reaped to bound RAM.
     pool = new Pool({
@@ -95,7 +95,7 @@ function connect() {
     // Production without DATABASE_URL: refuse to start rather than OOM on PGlite.
     mode = 'failed';
     throw new Error(
-      'DATABASE_URL is not set. Set DATABASE_URL (Railway Postgres add-on) or run locally with USE_PGLITE=1. ' +
+      'DATABASE_URL is not set. Set DATABASE_URL (Render Postgres) or run locally with USE_PGLITE=1. ' +
       'Refusing to start without a database to avoid loading the in-process PGlite engine (OOM risk on low-RAM hosts).'
     );
   }
