@@ -63,6 +63,13 @@ let pglite = null; // PGlite instance (local/dev)
 function connect() {
   if (mode !== 'pending') return;
   const url = process.env.DATABASE_URL;
+  // PGlite is a full Postgres compiled to WASM that runs INSIDE this process.
+  // It works great for local dev but is heavy (~100MB+) and is the thing that
+  // OOM-killed the Railway free dyno when DATABASE_URL was absent. So it must
+  // be OPT-IN: only used locally (NODE_ENV !== 'production') or when the
+  // operator explicitly sets USE_PGLITE=1. In production, a missing
+  // DATABASE_URL fails loud instead of silently loading PGlite and crashing.
+  const wantPglite = !url && (process.env.USE_PGLITE === '1' || process.env.NODE_ENV !== 'production');
   if (url) {
     const { Pool } = require('pg');
     // Free-tier Railway Postgres allows ~20 connections; the hobby dyno runs
@@ -77,13 +84,20 @@ function connect() {
     pool.on('error', (err) => console.error('Unexpected Postgres pool error:', err));
     mode = 'pg';
     console.log('[db] Using managed Postgres (DATABASE_URL)');
-  } else {
+  } else if (wantPglite) {
     const { PGlite } = require('@electric-sql/pglite');
     // Persist to a local data dir so dev sessions survive restarts.
     const dir = path.join(__dirname, 'data-pglite');
     pglite = new PGlite(dir);
     mode = 'pglite';
-    console.log('[db] Using embedded PGlite (no DATABASE_URL set)');
+    console.log('[db] Using embedded PGlite (local dev / USE_PGLITE=1)');
+  } else {
+    // Production without DATABASE_URL: refuse to start rather than OOM on PGlite.
+    mode = 'failed';
+    throw new Error(
+      'DATABASE_URL is not set. Set DATABASE_URL (Railway Postgres add-on) or run locally with USE_PGLITE=1. ' +
+      'Refusing to start without a database to avoid loading the in-process PGlite engine (OOM risk on low-RAM hosts).'
+    );
   }
 }
 
