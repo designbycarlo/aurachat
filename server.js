@@ -342,6 +342,33 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ user: publicUser(user) });
 });
 
+app.post('/api/auth/reset/request', (req, res) => {
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'Please provide a valid email address' });
+  }
+  const token = store.createResetToken(email);
+  if (!token) {
+    return res.json({ ok: true, message: 'If that email exists, a reset link will be sent.' });
+  }
+  res.json({ ok: true, resetToken: token });
+});
+
+app.post('/api/auth/reset/confirm', (req, res) => {
+  const token = String(req.body?.token || '').trim();
+  const password = String(req.body?.password || '');
+  if (!token || password.length < 8) {
+    return res.status(400).json({ error: 'Token and password (min 8 chars) are required' });
+  }
+  const user = store.consumeResetToken(token);
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid or expired reset link' });
+  }
+  store.updatePassword(user.id, password);
+  const sessionToken = store.createSession(user.id);
+  res.json({ ok: true, token: sessionToken, user: publicUser(user) });
+});
+
 /* Saved personalized reports — always tied to the authenticated user */
 
 app.post('/api/reports', requireAuth, (req, res) => {

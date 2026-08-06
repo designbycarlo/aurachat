@@ -12,9 +12,10 @@ const crypto = require('crypto');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
-const EMPTY = { users: [], sessions: [], reports: [] };
+const EMPTY = { users: [], sessions: [], reports: [], resetTokens: [] };
 
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
 const SCRYPT_KEYLEN = 64;
 
 let db = null;
@@ -152,6 +153,40 @@ function deleteReport(userId, reportId) {
   return true;
 }
 
+function createResetToken(email) {
+  const user = findByEmail(email);
+  if (!user) return null;
+  const token = crypto.randomBytes(32).toString('hex');
+  load().resetTokens.push({
+    token,
+    userId: user.id,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + RESET_TTL_MS,
+  });
+  persist();
+  return token;
+}
+
+function consumeResetToken(token) {
+  const tokens = load().resetTokens;
+  const idx = tokens.findIndex((t) => t.token === token);
+  if (idx < 0) return null;
+  const resetToken = tokens[idx];
+  tokens.splice(idx, 1);
+  persist();
+  if (resetToken.expiresAt < Date.now()) return null;
+  return findById(resetToken.userId);
+}
+
+function updatePassword(userId, password) {
+  const user = findById(userId);
+  if (!user) return false;
+  user.salt = newSalt();
+  user.passHash = hashPassword(password, user.salt);
+  persist();
+  return true;
+}
+
 module.exports = {
   findByEmail,
   findById,
@@ -163,6 +198,9 @@ module.exports = {
   listReports,
   getReport,
   deleteReport,
+  createResetToken,
+  consumeResetToken,
+  updatePassword,
   safeEqual,
   hashPassword,
   newSalt,

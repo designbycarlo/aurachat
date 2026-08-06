@@ -345,14 +345,44 @@
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-    }
-    .modal .auth-divider::before,
-    .modal .auth-divider::after {
-      content: "";
-      flex: 1;
-      height: 1px;
-      background: var(--line);
-    }
+     }
+     .modal .auth-divider::before,
+     .modal .auth-divider::after {
+       content: "";
+       flex: 1;
+       height: 1px;
+       background: var(--line);
+     }
+     .auth-forgot,
+     .auth-back {
+       display: block;
+       text-align: center;
+       font-size: 12.5px;
+       font-weight: 500;
+       color: var(--muted);
+       text-decoration: none;
+       margin: 6px 0 0;
+       cursor: pointer;
+     }
+     .auth-forgot:hover,
+     .auth-back:hover { color: var(--text); }
+     .reset-token-display {
+       background: var(--widget-2);
+       border: 1px solid var(--line);
+       border-radius: var(--radius-sm);
+       padding: 10px 12px;
+       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+       font-size: 12px;
+       color: var(--text);
+       word-break: break-all;
+       text-align: center;
+       margin: 8px 0;
+       user-select: text;
+       cursor: pointer;
+     }
+     .reset-token-display:hover { border-color: var(--line-strong); }
+     .reset-step { display: none; }
+     .reset-step.active { display: block; }
 
     /* ---------- Scroll-reveal widgets ---------- */
     .widget {
@@ -1270,9 +1300,35 @@
             </button>
           </div>
         </div>
-        <button type="submit" class="auth-submit" id="loginSubmit">Log in</button>
-      </form>
-      <div class="auth-divider"><span>or</span></div>
+         <button type="submit" class="auth-submit" id="loginSubmit">Log in</button>
+       </form>
+       <a href="#" class="auth-forgot" id="authForgot">Forgot password?</a>
+       <form id="resetForm" style="display:none">
+         <div class="reset-step active" id="resetStepEmail">
+           <div class="field">
+             <label for="resetEmail">Email</label>
+             <input type="email" id="resetEmail" autocomplete="email" required />
+           </div>
+           <button type="submit" class="auth-submit" id="resetSubmit">Send reset link</button>
+         </div>
+         <div class="reset-step" id="resetStepPassword">
+           <div class="auth-err" style="display:none"></div>
+           <div class="reset-token-display" id="resetTokenDisplay" style="display:none"></div>
+           <div class="field">
+             <label for="resetPassword">New password</label>
+             <div class="pw-wrap">
+               <input type="password" id="resetPassword" autocomplete="new-password" minlength="8" required />
+               <button type="button" class="pw-toggle" aria-label="Show password" onclick="togglePw(this)">
+                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+               </button>
+             </div>
+             <span class="d3-note">At least 8 characters.</span>
+           </div>
+           <button type="submit" class="auth-submit" id="resetPasswordSubmit">Reset password</button>
+         </div>
+         <a href="#" class="auth-back" id="authBack">Back to login</a>
+       </form>
+       <div class="auth-divider"><span>or</span></div>
       <form id="signupForm">
         <div class="field">
           <label for="signupEmail">Email</label>
@@ -1701,7 +1757,18 @@
     const navUserEl = document.getElementById('navUser');
     const navAvatar = document.getElementById('navAvatar');
     const navEmail = document.getElementById('navEmail');
+    const authForgot = document.getElementById('authForgot');
+    const resetForm = document.getElementById('resetForm');
+    const resetStepEmail = document.getElementById('resetStepEmail');
+    const resetStepPassword = document.getElementById('resetStepPassword');
+    const resetEmail = document.getElementById('resetEmail');
+    const resetSubmit = document.getElementById('resetSubmit');
+    const resetPasswordSubmit = document.getElementById('resetPasswordSubmit');
+    const resetPassword = document.getElementById('resetPassword');
+    const resetTokenDisplay = document.getElementById('resetTokenDisplay');
+    const authBack = document.getElementById('authBack');
 
+    let resetTokenValue = null;
     let authToken = localStorage.getItem('aura_token') || null;
     let currentUser = null;
 
@@ -1710,6 +1777,14 @@
       authErr.textContent = '';
       loginForm.reset();
       signupForm.reset();
+      resetForm.reset();
+      resetForm.style.display = 'none';
+      loginForm.style.display = '';
+      authForgot.style.display = '';
+      resetStepEmail.classList.add('active');
+      resetStepPassword.classList.remove('active');
+      resetTokenValue = null;
+      if (resetTokenDisplay) resetTokenDisplay.style.display = 'none';
       authModal.hidden = false;
       switchAuthTab('login');
     }
@@ -1727,6 +1802,15 @@
       } else {
         document.getElementById('authTitle').textContent = 'Create account';
         document.getElementById('authSub').textContent = 'Sign up to save and track your reports.';
+      }
+      if (resetForm) {
+        resetForm.style.display = 'none';
+        loginForm.style.display = '';
+        authForgot.style.display = '';
+        resetStepEmail.classList.add('active');
+        resetStepPassword.classList.remove('active');
+        resetTokenValue = null;
+        if (resetTokenDisplay) resetTokenDisplay.style.display = 'none';
       }
     }
 
@@ -1826,6 +1910,85 @@
         showAuthError(err.message);
       } finally {
         signupSubmit.disabled = false;
+      }
+    });
+
+    authForgot.addEventListener('click', (e) => {
+      e.preventDefault();
+      loginForm.style.display = 'none';
+      authForgot.style.display = 'none';
+      resetForm.style.display = '';
+    });
+
+    authBack.addEventListener('click', (e) => {
+      e.preventDefault();
+      resetForm.style.display = 'none';
+      loginForm.style.display = '';
+      authForgot.style.display = '';
+      resetStepEmail.classList.add('active');
+      resetStepPassword.classList.remove('active');
+      resetTokenValue = null;
+      if (resetTokenDisplay) resetTokenDisplay.style.display = 'none';
+    });
+
+    resetForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (resetStepPassword.classList.contains('active')) {
+        resetPasswordSubmit.disabled = true;
+        authErr.classList.remove('show');
+        try {
+          const res = await fetch('/api/auth/reset/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: resetTokenValue,
+              password: resetPassword.value
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Reset failed');
+          authToken = data.token;
+          currentUser = data.user;
+          localStorage.setItem('aura_token', authToken);
+          updateNavState();
+          hideAuthModal();
+          refreshDashboardIfActive();
+        } catch (err) {
+          authErr.textContent = err.message;
+          authErr.classList.add('show');
+        } finally {
+          resetPasswordSubmit.disabled = false;
+        }
+        return;
+      }
+      resetSubmit.disabled = true;
+      authErr.classList.remove('show');
+      try {
+        const res = await fetch('/api/auth/reset/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: resetEmail.value.trim() })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        if (data.resetToken) {
+          resetTokenValue = data.resetToken;
+          resetTokenDisplay.textContent = data.resetToken;
+          resetTokenDisplay.style.display = '';
+          resetStepEmail.classList.remove('active');
+          resetStepPassword.classList.add('active');
+        } else {
+          authErr.textContent = data.message || 'If that email exists, a reset link has been sent.';
+          authErr.classList.add('show');
+          resetForm.style.display = 'none';
+          loginForm.style.display = '';
+          authForgot.style.display = '';
+        }
+      } catch (err) {
+        authErr.textContent = err.message;
+        authErr.classList.add('show');
+      } finally {
+        resetSubmit.disabled = false;
       }
     });
 
