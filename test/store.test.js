@@ -77,6 +77,9 @@ function fail(msg, err) {
   assert.strictEqual(list.length, 1, 'one report listed');
   assert.strictEqual(list[0].id, saved.id);
   assert.strictEqual(list[0].grade, 'A');
+  assert.strictEqual(list[0].score, 82, 'flat score preserved in list');
+  assert.ok(list[0].report, 'list includes full report JSON');
+  assert.strictEqual(list[0].report.score, 82, 'nested report.score preserved in list');
 
   const got = await store.getReport(user.id, saved.id);
   assert.ok(got, 'getReport returns record');

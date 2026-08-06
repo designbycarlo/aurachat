@@ -126,16 +126,19 @@ async function addReport(userId, report) {
 
 async function listReports(userId) {
   const res = await db.query(
-    'SELECT id, created_at, url, title, score, grade FROM reports WHERE user_id = $1 ORDER BY created_at DESC',
+    'SELECT id, created_at, url, title, score, grade, report FROM reports WHERE user_id = $1 ORDER BY created_at DESC',
     [userId]
   );
-  return res.rows.map(({ id, created_at, url, title, score, grade }) => ({
+  return res.rows.map(({ id, created_at, url, title, score, grade, report }) => ({
     id,
     createdAt: Number(created_at),
     url,
     title,
     score,
     grade,
+    // Full report JSON (incl. `signals`) — the dashboard reads
+    // `report.score` and `report.signals`, so it must be present here.
+    report,
   }));
 }
 
