@@ -4,7 +4,7 @@
 
 AuraChat is a lightweight, self-hosted tool that analyzes any public URL and produces an instant **AI-readiness report**. It scores your site for discovery by engines like **Google AI Overview**, **Perplexity**, and **ChatGPT Search**, then hands back a clear grade, strengths, weaknesses, and prioritized recommendations.
 
-No frameworks. No build step. No database. Just Node, Express, and a sprinkle of AI magic. ✨
+No frameworks. No build step. Just Node, Express, a sprinkle of AI magic — and a Postgres database for accounts, sessions, and saved reports. ✨
 
 ---
 
@@ -34,6 +34,7 @@ No frameworks. No build step. No database. Just Node, Express, and a sprinkle of
 | LLM Gateway | [OpenRouter](https://openrouter.ai) (free tier) |
 | PDF         | [PDFKit](https://pdfkit.org)                    |
 | Frontend    | Vanilla HTML, CSS, and JS — zero build step     |
+| Database    | PostgreSQL (Railway add-on) — or embedded PGlite for local dev |
 | Deploy      | Railway (Nixpacks)                              |
 
 ---
@@ -204,6 +205,28 @@ railway up
 
 Set `OPENROUTER_API_KEY` as a Railway variable, and you're live. The `railway.toml` config handles the rest — build via Nixpacks, `npm start` on deploy, and a `/health` check.
 
+#### 🐘 Adding the Postgres add-on (required for accounts & saved reports)
+
+AuraChat stores users, sessions, and saved reports in Postgres. On Railway this is a one-time, zero-config add-on:
+
+1. In the Railway project, click **New → Database → Add PostgreSQL**.
+2. Railway automatically injects a `DATABASE_URL` environment variable into the service — **you don't set it manually**, and you don't need to add it to your repo.
+3. Redeploy (Railway does this automatically once the database is linked).
+
+On first boot the app runs an idempotent schema migration (`CREATE TABLE IF NOT EXISTS` for `users`, `sessions`, `reports`, and `reset_tokens` with FK cascades), so a brand-new database self-initializes. **No `DATABASE_URL` ⇒ no persistence**: without the add-on, account, session, and report features return errors while analysis still works — so the add-on is effectively required for the auth/save flow.
+
+> 💡 **Why Postgres?** The earlier JSON file store was wiped on every Railway redeploy (ephemeral filesystem) and couldn't be shared across multiple instances. Postgres makes user data survive deploys and scale horizontally.
+
+##### Local development (no Postgres install needed)
+
+Leave `DATABASE_URL` **unset** locally. AuraChat then falls back to [PGlite](https://pglite.dev) — a real Postgres engine compiled to WASM that runs embedded in the process (stored in the gitignored `data-pglite/` dir). It speaks genuine Postgres SQL, so the schema and queries you test locally are identical to production:
+
+```bash
+npm install
+npm test          # exercises the store against embedded PGlite (real Postgres)
+npm start         # uses PGlite; open http://localhost:3000
+```
+
 ### Other hosts
 
 AuraChat is a standard Express app — deploy anywhere that runs Node:
@@ -222,6 +245,8 @@ Set `PORT` and `OPENROUTER_API_KEY` as environment variables.
 ```
 aurachat/
 ├── server.js              # Express server, signal extraction, AI analysis
+├── db.js                  # Postgres connection (pg in prod, PGlite locally) + schema
+├── data-store.js          # Async user/session/report persistence layer
 ├── generate-pdf.js        # PDFKit report generator (one-page, print-optimized)
 ├── public/
 │   └── index.html         # Frontend UI (widget dashboard, dark theme, PWA)
@@ -241,6 +266,9 @@ aurachat/
 | `OPENROUTER_API_KEY`  | ✅ Yes   | —                                | Your OpenRouter API key              |
 | `OPENROUTER_MODEL`    | ❌ No    | `openai/gpt-oss-20b:free`        | Primary LLM model ID                 |
 | `PORT`                | ❌ No    | `3000`                           | Server port                          |
+| `DATABASE_URL`        | ❌*      | *(unset → embedded PGlite)*      | Postgres connection string (Railway injects this) |
+
+\* Required in production (via the Railway Postgres add-on); leave unset for local dev to use the embedded PGlite database.
 
 ---
 
@@ -250,6 +278,7 @@ aurachat/
 | --------------- | ------------------------------------ |
 | `npm start`     | Start production server              |
 | `npm run dev`   | Start development server (alias)     |
+| `npm test`      | Run store integration tests (PGlite) |
 | `npm run icons` | Generate PWA icons from SVG source   |
 
 ---
