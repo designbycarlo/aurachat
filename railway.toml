@@ -2,7 +2,10 @@
 builder = "nixpacks"
 
 [deploy]
-releaseCommand = "node migrate.js"
+# Runs migrations once, before the server container starts. It's a throwaway
+# process that exits, so it adds no runtime RAM on the free tier. This replaces
+# the previous `releaseCommand` field (now `preDeployCommand` in Railway).
+preDeployCommand = "node migrate.js"
 startCommand = "npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 120
