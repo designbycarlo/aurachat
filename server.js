@@ -83,11 +83,34 @@ function createRateLimiter({ windowMs, max, key }) {
 
 const clientIp = (req) => req.ip || req.socket.remoteAddress || 'unknown';
 
-const loginLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 8, // attempts per IP + email
-  key: (req) => `${clientIp(req)}|login|${String(req.body?.email || '').trim().toLowerCase()}`,
-});
+/* ------------------------------------------------------------------ *\
+ * Brute-force protection on auth endpoints.
+ *
+ * Lives in the database (not process memory) so it survives the Railway free
+ * dyno's sleep/recycle — an in-memory map reset every restart, handing a
+ * brute-forcer a fresh attempt budget. One row per (IP+email) bucket, refreshed
+ * atomically on each hit. A 24h lazy prune keeps the table tiny.
+ * ------------------------------------------------------------------ */
+const LOGIN_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOGIN_MAX = 8; // attempts per IP + email per window
+
+async function loginRateLimit(req, res, next) {
+  const k = `${clientIp(req)}|login|${String(req.body?.email || '').trim().toLowerCase()}`;
+  try {
+    const { count, remaining } = await store.hitRateLimit(k, LOGIN_WINDOW_MS, LOGIN_MAX);
+    res.set('X-RateLimit-Limit', String(LOGIN_MAX));
+    res.set('X-RateLimit-Remaining', String(remaining));
+    if (count > LOGIN_MAX) {
+      const retry = Math.ceil(LOGIN_WINDOW_MS / 1000);
+      res.set('Retry-After', String(retry));
+      return res.status(429).json({ error: 'Too many attempts, please try again later.' });
+    }
+    next();
+  } catch (err) {
+    console.error('login rate limit error:', err);
+    next(); // fail open (availability) — auth logic still validates credentials
+  }
+}
 const registerLimiter = createRateLimiter({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5, // new accounts per IP
@@ -451,7 +474,7 @@ app.post('/api/auth/register', registerLimiter, async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', loginLimiter, async (req, res) => {
+app.post('/api/auth/login', loginRateLimit, async (req, res) => {
   const email = String(req.body?.email || '').trim().toLowerCase();
   const password = String(req.body?.password || '');
   try {
@@ -581,9 +604,13 @@ app.delete('/api/reports/:id', requireAuth, async (req, res) => {
 
 (async () => {
   try {
-    await db.initDb();
+    // Run pending schema migrations and fail fast. A broken DB must not serve
+    // a silently-dead auth system: if migrations can't be applied, exit so the
+    // deploy stays unhealthy instead of going live half-working.
+    await db.migrate();
   } catch (err) {
-    console.error('Failed to initialize database; continuing without persistence:', err);
+    console.error('[fatal] database migration failed; refusing to start:', err);
+    process.exit(1);
   }
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`AI SEO/AEO Analyzer running at http://0.0.0.0:${PORT}`);

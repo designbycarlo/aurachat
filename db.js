@@ -65,7 +65,15 @@ function connect() {
   const url = process.env.DATABASE_URL;
   if (url) {
     const { Pool } = require('pg');
-    pool = new Pool({ connectionString: url, max: 10 });
+    // Free-tier Railway Postgres allows ~20 connections; the hobby dyno runs
+    // a single node process, so 2 is plenty and leaves headroom for other
+    // services on the shared instance. Idle clients are reaped to bound RAM.
+    pool = new Pool({
+      connectionString: url,
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      allowExitOnIdle: true,
+    });
     pool.on('error', (err) => console.error('Unexpected Postgres pool error:', err));
     mode = 'pg';
     console.log('[db] Using managed Postgres (DATABASE_URL)');
@@ -125,4 +133,87 @@ async function closeDb() {
   pglite = null;
 }
 
-module.exports = { query, initDb, backend, closeDb };
+/* ------------------------------------------------------------------ *\
+ * Versioned migrations
+ *
+ * Applies any pending ./migrations/<NNNN>_*.sql in order, exactly once per
+ * database. Each file is executed as a single unit (inside a transaction)
+ * and its version recorded in schema_migrations. This makes the schema
+ * evolvable without data loss or manual ALTERs, and lets an existing
+ * database (already-created tables) treat the initial migration as a no-op.
+ *
+ * Why this helps security posture: a tracked, replayable schema is what lets
+ * us harden credentials later (e.g. migrate hashes to a stronger KDF) and add
+ * abuse-mitigation columns without breaking existing accounts — and the
+ * boot-time failure below means a broken DB fails fast instead of serving a
+ * silently-broken auth system.
+ * ------------------------------------------------------------------ */
+let migrationsDir = path.join(__dirname, 'migrations');
+
+async function ensureMigrationsTable() {
+  await query(
+    `CREATE TABLE IF NOT EXISTS schema_migrations (
+       version TEXT PRIMARY KEY,
+       applied_at BIGINT NOT NULL
+     )`
+  );
+}
+
+async function appliedVersions() {
+  await ensureMigrationsTable();
+  const res = await query('SELECT version FROM schema_migrations');
+  return new Set(res.rows.map((r) => r.version));
+}
+
+async function runSqlFile(file) {
+  const sql = fs.readFileSync(file, 'utf8');
+  if (mode === 'pg') {
+    // Real Postgres: wrap in a transaction so a failed migration rolls back.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  } else {
+    // PGlite: transactions are supported but each query is auto-committed per
+    // statement; run the file's statements split on ';' (migrations are plain
+    // DDL, no PL/pgSQL with internal semicolons). If a statement fails the
+    // whole migrate() rejects and the process exits non-zero.
+    const statements = sql.split(';').map((s) => s.trim()).filter(Boolean);
+    for (const stmt of statements) {
+      await query(stmt);
+    }
+  }
+}
+
+async function migrate({ dir = migrationsDir } = {}) {
+  connect();
+  const done = await appliedVersions();
+  const files = fs
+    .readdirSync(dir)
+    .filter((f) => /^\d+_.*\.sql$/.test(f))
+    .sort();
+
+  let applied = 0;
+  for (const f of files) {
+    const version = f.replace(/_.*$/, '');
+    if (done.has(version)) continue; // already applied — skip (idempotent)
+    console.log(`[migrate] applying ${f}`);
+    await runSqlFile(path.join(dir, f));
+    await query('INSERT INTO schema_migrations (version, applied_at) VALUES ($1, $2)', [
+      version,
+      Date.now(),
+    ]);
+    applied += 1;
+  }
+  if (applied === 0) console.log('[migrate] already up to date');
+  return { applied, total: files.length };
+}
+
+module.exports = { query, initDb, backend, closeDb, migrate };

@@ -152,6 +152,37 @@ async function deleteReport(userId, reportId) {
   return res.rowCount > 0;
 }
 
+/* --- brute-force rate-limit buckets (DB-backed, survives restarts) --- */
+
+// Atomically return the current count for a key, opening/refreshing its window.
+// Returns { count, start }. The 24h prune bound keeps the table tiny on the
+// free tier; keys older than that are treated as expired and reset.
+async function hitRateLimit(key, windowMs, max) {
+  const now = Date.now();
+  const res = await db.query(
+    `INSERT INTO rate_limits (key, start, count)
+       VALUES ($1, $2, 1)
+     ON CONFLICT (key) DO UPDATE
+       SET count = CASE
+             WHEN rate_limits.start > $3 THEN rate_limits.count + 1  -- window still active -> increment
+             ELSE 1                                                  -- window elapsed -> reset
+           END,
+           start = CASE
+             WHEN rate_limits.start > $3 THEN rate_limits.start     -- keep window start
+             ELSE $2                                                -- restart window
+           END
+     RETURNING count, start`,
+    [key, now, now - windowMs]
+  );
+  // Lazy-prune anything older than 24h so the table can't grow unbounded.
+  db.query(
+    'DELETE FROM rate_limits WHERE start < $1',
+    [now - 24 * 60 * 60 * 1000]
+  ).catch(() => {});
+  const { count, start } = res.rows[0];
+  return { count, remaining: Math.max(0, max - count) };
+}
+
 async function createResetToken(email) {
   const user = await findByEmail(email);
   if (!user) return null;
@@ -193,6 +224,7 @@ module.exports = {
   listReports,
   getReport,
   deleteReport,
+  hitRateLimit,
   createResetToken,
   consumeResetToken,
   updatePassword,
