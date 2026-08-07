@@ -14,7 +14,7 @@ No frameworks. No build step. Just static HTML/CSS/JS served from Cloudflare Pag
 - **🔍 Deep signal extraction** — title tags, meta descriptions, canonical URLs, Open Graph, JSON-LD structured data, heading hierarchy, word count, FAQ/How-to detection, conversational tone, and AI-agent markers
 - **🧠 LLM-powered analysis** via [OpenRouter](https://openrouter.ai) with **automatic model failover** — if the primary model hiccups, AuraChat seamlessly falls back to the next free model
 - **📊 Actionable report cards** — strengths, weaknesses, and prioritized recommendations, served as clean JSON
-- **📄 Export to PDF & CSV** — one-click download of a polished one-page PDF report or raw CSV data for spreadsheets
+- **🖼️ Export as print-ready image or CSV** — one-click download of the report as a browser-rendered image (AVIF/WebP/PNG) or raw CSV data for spreadsheets
 - **🎨 Widget-based dashboard** — animated, responsive layout with score gauge, signal coverage grid, stat tiles, and list panels
 - **🌀 Fun loading experience** — while the AI thinks, you'll see rotating messages like *"Consulting the SEO oracle..."* and *"Polishing the crystal ball..."*
 - **🎨 Polished dark UI** — responsive, dependency-free, and ready to ship
@@ -31,7 +31,7 @@ No frameworks. No build step. Just static HTML/CSS/JS served from Cloudflare Pag
 | Runtime     | Cloudflare Pages Functions (Workers runtime)    |
 | Frontend    | Vanilla HTML, CSS, and JS — zero build step     |
 | AI Gateway  | [OpenRouter](https://openrouter.ai) (free tier) |
-| PDF         | [pdf-lib](https://github.com/Hopding/pdf-lib)   |
+| Image Export | Browser-native canvas 2D → AVIF (no dependencies) |
 | Database    | Cloudflare [D1](https://developers.cloudflare.com/d1/) (serverless SQLite) |
 | Auth        | Cookie-based sessions, scrypt password hashing (`@noble/hashes`) |
 | Deploy      | Cloudflare Pages (wrangler)                     |
@@ -121,14 +121,6 @@ Analyze a URL for AI SEO / AEO readiness.
 | 400    | Missing or invalid URL           |
 | 500    | Analysis failed (server error)   |
 
-### `POST /api/report/pdf`
-
-Generate a one-page PDF report from analysis data.
-
-**Request body** — the full response object from `/api/analyze`
-
-**Response (200)** — `application/pdf` binary stream with `Content-Disposition: inline`
-
 ### `POST /api/report/csv`
 
 Generate a CSV export from analysis data.
@@ -136,6 +128,8 @@ Generate a CSV export from analysis data.
 **Request body** — the full response object from `/api/analyze`
 
 **Response (200)** — `text/csv` binary stream with `Content-Disposition: attachment`
+
+> 💡 **Print-ready image export is client-side** — the "Print Image" button renders the report onto a letter-sized canvas in the browser (`public/export-report.js`) and downloads it as AVIF (falling back to WebP/PNG). No server endpoint is involved; multi-page reports download one image per page.
 
 ### Authentication & Saved Reports
 
@@ -264,18 +258,17 @@ This spins up a local Pages runtime at `http://localhost:8788` with an embedded 
 aurachat/
 ├── public/
 │   └── index.html           # Frontend UI (widget dashboard, dark theme, PWA)
+│   └── export-report.js     # Client-side canvas → AVIF/WebP/PNG report export
 ├── functions/
 │   ├── _lib/
 │   │   ├── analyze.js       # URL fetch + signal extraction + AI model failover
 │   │   ├── auth.js          # Scrypt password hashing, session cookies, tokens
 │   │   ├── db.js            # D1 query helpers (env.DB)
 │   │   ├── http.js          # JSON responses, rate limiting, auth middleware
-│   │   ├── pdf.js           # pdf-lib report generator (one-page, print-optimized)
 │   │   └── store.js         # D1-backed data access (users, sessions, reports, rate limits)
 │   ├── api/
 │   │   ├── analyze.js          # POST /api/analyze
 │   │   ├── report/
-│   │   │   ├── pdf.js          # POST /api/report/pdf
 │   │   │   └── csv.js          # POST /api/report/csv
 │   │   ├── reports.js          # GET/POST /api/reports
 │   │   ├── reports/
@@ -296,10 +289,7 @@ aurachat/
 ├── data-store.js          # Legacy Postgres store (kept for local pnpm test parity)
 ├── db.js                  # Legacy Postgres connection + schema (uses pg or PGlite)
 ├── migrate.js             # Legacy migration runner (npm run migrate)
-├── generate-pdf.js        # Legacy pdfkit report generator (Node-only)
 ├── generate-icons.js      # PWA icon generation
-├── fonts/                 # Geist variable font (self-hosted, for print)
-├── icc/                   # CMYK ICC profile (for print-ready PDFs)
 ├── package.json           # Dependencies and scripts
 ├── wrangler.toml          # Cloudflare Pages + D1 config
 ├── .dev.vars              # Local env vars (not committed)
@@ -353,7 +343,7 @@ For production (Cloudflare Pages), set variables via the dashboard: project → 
 - Analysis quality depends on the selected LLM — free models are great for experimentation; swap in a paid model for production-grade reports.
 - Never commit `.dev.vars` or `.env` — they contain secrets.
 - Mobile zoom is disabled via viewport meta, CSS `touch-action`, and JS gesture blocking to prevent accidental pinch/double-tap zoom on touch devices.
-- PDF reports are single-page by design — content intelligently scales to fit.
+- Print-ready image export renders the report onto letter-sized pages in the browser (`public/export-report.js`) — one image per page, sized for print.
 - CSV exports include all signals, strengths, weaknesses, and recommendations in a tabular format.
 - Login brute-force protection is **DB-backed** (D1 rate-limit table) so it survives worker restarts and cold starts.
 - Password hashing uses **scrypt** (N=16384, r=8, p=1) via `@noble/hashes` — compatible with the original Node `crypto.scryptSync` parameters, so hashes can migrate from older deployments.

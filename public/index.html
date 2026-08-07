@@ -49,6 +49,9 @@
   <!-- D3.js (dashboard charts) -->
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js" defer></script>
 
+  <!-- Client-side report image export (AVIF/WebP/PNG) -->
+  <script src="export-report.js" defer></script>
+
   <style>
     @font-face {
       font-family: 'Geist';
@@ -814,12 +817,12 @@
       font-size: 12.5px;
       color: var(--muted);
     }
-    .pdf-btn-container {
+    .export-btn-container {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
     }
-    .pdf-btn {
+    .export-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -834,17 +837,17 @@
       cursor: pointer;
       transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s ease;
     }
-    .pdf-btn svg { width: 15px; height: 15px; }
-    .pdf-btn.secondary {
+    .export-btn svg { width: 15px; height: 15px; }
+    .export-btn.secondary {
       background: rgba(148,163,184,0.10);
       border-color: var(--line-strong);
       color: var(--text);
     }
-    .pdf-btn:hover {
+    .export-btn:hover {
       transform: translateY(-1px);
       box-shadow: 0 8px 24px rgba(99,102,241,0.28);
     }
-    .pdf-btn:disabled {
+    .export-btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
       transform: none;
@@ -865,7 +868,7 @@
       .stat { grid-column: span 6; }
       .signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .w-actions { flex-direction: column; align-items: stretch; }
-      .pdf-btn { flex: 1; }
+      .export-btn { flex: 1; }
     }
     @media (max-width: 480px) {
       body { padding-top: calc(env(safe-area-inset-top) + 28px); }
@@ -1046,7 +1049,7 @@
       letter-spacing: 0.03em;
     }
     .saved-item .saved-actions { display: flex; gap: 8px; flex-shrink: 0; }
-    .saved-item .pdf-btn { padding: 8px 12px; font-size: 12.5px; }
+    .saved-item .export-btn { padding: 8px 12px; font-size: 12.5px; }
     @media (max-width: 900px) {
       .dash-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
@@ -1057,7 +1060,7 @@
       .saved-item { flex-wrap: wrap; }
     }
 
-    /* Print: mirror the PDF widget layout on a single sheet */
+    /* Print: mirror the report layout on a single sheet */
     @media print {
       @page { size: letter portrait; margin: 11mm; }
       body { background: #ffffff; color: #0f172a; display: block; padding: 0; }
@@ -1247,18 +1250,18 @@
           <section class="widget w-actions" style="--i: 10">
             <div class="actions-copy">
               <span class="eyebrow">Export</span>
-              <p>Take the full report with you as a one-page PDF or raw CSV data.</p>
+              <p>Take the report with you as a print-ready image (AVIF) or raw CSV data.</p>
             </div>
-            <div class="pdf-btn-container">
-              <button type="button" class="pdf-btn" id="pdfBtn">
+            <div class="export-btn-container">
+              <button type="button" class="export-btn" id="avifBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>
-                <span id="pdfBtnText">PDF Report</span>
+                <span id="avifBtnText">Print Image</span>
               </button>
-              <button type="button" class="pdf-btn secondary" id="csvBtn">
+              <button type="button" class="export-btn secondary" id="csvBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
                 <span id="csvBtnText">CSV Data</span>
               </button>
-              <button type="button" class="pdf-btn secondary" id="saveReportBtn">
+              <button type="button" class="export-btn secondary" id="saveReportBtn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
                 <span id="saveReportBtnText">Save report</span>
               </button>
@@ -1395,7 +1398,7 @@
     const loadingText = document.getElementById('loadingText');
     const errorEl = document.getElementById('error');
     const result = document.getElementById('result');
-    const pdfBtn = document.getElementById('pdfBtn');
+    const avifBtn = document.getElementById('avifBtn');
     const csvBtn = document.getElementById('csvBtn');
 
     let lastResult = null;
@@ -1659,22 +1662,16 @@
       }
     });
 
-    pdfBtn.addEventListener('click', async () => {
+    avifBtn.addEventListener('click', async () => {
       if (!lastResult) return;
-      pdfBtn.disabled = true;
-      pdfBtn.querySelector('#pdfBtnText').textContent = 'Generating...';
+      avifBtn.disabled = true;
+      avifBtn.querySelector('#avifBtnText').textContent = 'Rendering...';
       try {
-        const res = await fetch('/api/report/pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(lastResult),
-        });
-        if (!res.ok) throw new Error('Failed to generate PDF');
-        const blob = await res.blob();
+        const blob = await exportReportToImage(lastResult);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `aurachat-seo-report-${Date.now()}.pdf`;
+        a.download = `aurachat-seo-report-${Date.now()}.avif`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1683,8 +1680,8 @@
         errorEl.textContent = err.message;
         errorEl.style.display = 'block';
       } finally {
-        pdfBtn.disabled = false;
-        pdfBtn.querySelector('#pdfBtnText').textContent = 'PDF Report';
+        avifBtn.disabled = false;
+        avifBtn.querySelector('#avifBtnText').textContent = 'Print Image';
       }
     });
 
@@ -2235,8 +2232,8 @@
                 <span class="saved-date">${date}</span>
               </div>
               <div class="saved-actions">
-                <button type="button" class="pdf-btn secondary saved-view" data-id="${r.id}">View</button>
-                <button type="button" class="pdf-btn secondary saved-delete" data-id="${r.id}">Delete</button>
+                <button type="button" class="export-btn secondary saved-view" data-id="${r.id}">View</button>
+                <button type="button" class="export-btn secondary saved-delete" data-id="${r.id}">Delete</button>
               </div>`;
             ul.appendChild(item);
           });
