@@ -299,12 +299,21 @@ Return ONLY a valid JSON object with these keys: score, grade, summary, strength
 }
 
 async function analyzeWithModel(model, signals) {
-  const result = await generateText({
-    model: openrouter(model),
-    prompt: buildPrompt(signals),
-    temperature: 0.2,
-    maxTokens: 1200,
-  });
+  const controller = new AbortController();
+  const timeoutMs = Number(process.env.OPENROUTER_TIMEOUT_MS) || 60000;
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let result;
+  try {
+    result = await generateText({
+      model: openrouter(model),
+      prompt: buildPrompt(signals),
+      temperature: 0.2,
+      maxTokens: 1200,
+      abortSignal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
   const raw = result.text.trim();
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error('Model did not return JSON');

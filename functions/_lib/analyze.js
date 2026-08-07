@@ -152,21 +152,33 @@ Return ONLY a valid JSON object with these keys: score, grade, summary, strength
 async function analyzeWithModel(model, signals, env) {
   const apiKey = env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://aurachat-aeo.pages.dev',
-      'X-Title': 'AuraChat AEO Analyzer',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: buildPrompt(signals) }],
-      temperature: 0.2,
-      max_tokens: 1200,
-    }),
-  });
+  const timeoutMs = Number(env.OPENROUTER_TIMEOUT_MS) || 60000;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://aurachat-aeo.pages.dev',
+        'X-Title': 'AuraChat AEO Analyzer',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: buildPrompt(signals) }],
+        temperature: 0.2,
+        max_tokens: 1200,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error(`OpenRouter request timed out after ${timeoutMs}ms`);
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
     throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 200)}`);
@@ -187,7 +199,7 @@ export async function analyzeURL(url, env) {
     return { error: err.message };
   }
   const signals = extractSignals(html, url);
-  const models = [DEFAULT_MODEL, ...FALLBACK_MODELS];
+  const models = [(env && env.OPENROUTER_MODEL) || DEFAULT_MODEL, ...FALLBACK_MODELS];
   let lastError;
   for (const model of models) {
     try {
