@@ -7,7 +7,7 @@ pages_build_output_dir = "public"
 [[d1_databases]]
 binding = "DB"
 database_name = "aurachat"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "977986ba-c669-4462-9287-7cc634432e3c"
 migrations_dir = "migrations"
 
 # Secrets are set with `wrangler secret put OPENROUTER_API_KEY` (never commit them).
