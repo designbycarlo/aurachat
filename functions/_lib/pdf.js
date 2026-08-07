@@ -36,8 +36,44 @@ function truncate(text, max) {
   return v.length <= max ? v : v.slice(0, max - 1).trim() + '…';
 }
 
+// Code points encodable by pdf-lib's WinAnsi (Windows-1252) standard fonts.
+// Anything outside this set makes page.drawText() throw, so all report content
+// is scrubbed through safeText() before rendering.
+const WIN_ANSI = new Set();
+for (let cp = 0x20; cp <= 0x7e; cp++) WIN_ANSI.add(cp); // printable ASCII
+for (let cp = 0xa0; cp <= 0xff; cp++) WIN_ANSI.add(cp); // Latin-1 supplement
+[
+  0x0152, 0x0153, 0x0160, 0x0161, 0x0178, 0x017d, 0x017e, 0x0192, 0x02c6,
+  0x02dc, 0x2013, 0x2014, 0x2018, 0x2019, 0x201a, 0x201c, 0x201d, 0x201e,
+  0x2020, 0x2021, 0x2022, 0x2026, 0x2030, 0x2039, 0x203a, 0x20ac, 0x2122,
+].forEach((cp) => WIN_ANSI.add(cp));
+
+// Common non-encodable glyphs mapped to readable ASCII equivalents. Anything
+// else outside WinAnsi (emoji, CJK, Cyrillic, …) is dropped to a space.
+const CHAR_MAP = {
+  '\u2192': '->',  // →
+  '\u2190': '<-',  // ←
+  '\u2194': '<->', // ↔
+  '\u2191': '^',   // ↑
+  '\u2193': 'v',   // ↓
+  '\u2713': 'v',   // ✓
+  '\u2717': 'x',   // ✗
+};
+
+function safeText(text) {
+  return Array.from(String(text == null ? '' : text))
+    .map((ch) => {
+      if (WIN_ANSI.has(ch.codePointAt(0))) return ch;
+      if (CHAR_MAP[ch]) return CHAR_MAP[ch];
+      return ' ';
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function wrapText(text, font, size, maxWidth) {
-  const words = String(text || '').split(/\s+/);
+  const words = safeText(text).split(/\s+/);
   const lines = [];
   let line = '';
   for (const w of words) {
@@ -76,7 +112,7 @@ export async function generatePDFReport(data) {
   page.drawRectangle({ x: M, y: height - 60, width: 22, height: 22, color: C.accent });
   page.drawText('AuraChat', { x: M + 32, y: height - 56, size: 16, font: fontBold, color: C.ink });
   page.drawText('AI SEO / AEO Analyzer', { x: M + 32, y: height - 74, size: 10, font, color: C.muted });
-  const url = truncate(data.signals?.url || '', 64);
+  const url = truncate(safeText(data.signals?.url), 64);
   page.drawText(url, { x: M, y: height - 88, size: 9, font, color: C.faint });
 
   let y = height - 96 - 40;
@@ -96,7 +132,7 @@ export async function generatePDFReport(data) {
   page.drawText('Score', { x: cx - 16, y: cy + 16, size: 8, font, color: C.faint });
 
   page.drawText(band.label, { x: cx + 64, y: cy + 6, size: 18, font: fontBold, color: band.color });
-  page.drawText(`Grade ${data.grade || '--'}`, { x: cx + 64, y: cy - 14, size: 11, font, color: C.muted });
+  page.drawText(safeText(`Grade ${data.grade || '--'}`), { x: cx + 64, y: cy - 14, size: 11, font, color: C.muted });
 
   y = cy - radius - 30;
 
