@@ -4,7 +4,7 @@
 
 AuraChat is a lightweight, self-hosted tool that analyzes any public URL and produces an instant **AI-readiness report**. It scores your site for discovery by engines like **Google AI Overview**, **Perplexity**, and **ChatGPT Search**, then hands back a clear grade, strengths, weaknesses, and prioritized recommendations.
 
-No frameworks. No build step. Just Node, Express, a sprinkle of AI magic — and a Postgres database for accounts, sessions, and saved reports. ✨
+No frameworks. No build step. Just static HTML/CSS/JS served from Cloudflare Pages, Pages Functions for the API, D1 (serverless SQLite) for accounts and saved reports, and a sprinkle of AI magic via OpenRouter. ✨
 
 ---
 
@@ -20,7 +20,7 @@ No frameworks. No build step. Just Node, Express, a sprinkle of AI magic — and
 - **🎨 Polished dark UI** — responsive, dependency-free, and ready to ship
 - **📱 Mobile zoom prevention** — pinch-to-zoom and gesture zooming are disabled on touch devices for a native-app feel
 - **📦 PWA ready** — installable web app with manifest, icons, and offline-capable structure
-- **🚀 One-command deploy** to Render (or any Node host)
+- **🚀 Deploy to Cloudflare Pages** with D1 database (generous free tier, no credit card required)
 
 ---
 
@@ -28,62 +28,73 @@ No frameworks. No build step. Just Node, Express, a sprinkle of AI magic — and
 
 | Layer       | Technology                                      |
 | ----------- | ----------------------------------------------- |
-| Runtime     | Node.js ≥ 18                                    |
-| Server      | Express                                         |
-| AI SDK      | [Vercel AI SDK](https://sdk.vercel.ai) (`ai`)   |
-| LLM Gateway | [OpenRouter](https://openrouter.ai) (free tier) |
-| PDF         | [PDFKit](https://pdfkit.org)                    |
+| Runtime     | Cloudflare Pages Functions (Workers runtime)    |
 | Frontend    | Vanilla HTML, CSS, and JS — zero build step     |
-| Database    | PostgreSQL (Render managed) — or embedded PGlite for local dev |
-| Deploy      | Render (Nixpacks)                                              |
+| AI Gateway  | [OpenRouter](https://openrouter.ai) (free tier) |
+| PDF         | [pdf-lib](https://github.com/Hopding/pdf-lib)   |
+| Database    | Cloudflare [D1](https://developers.cloudflare.com/d1/) (serverless SQLite) |
+| Auth        | Cookie-based sessions, scrypt password hashing (`@noble/hashes`) |
+| Deploy      | Cloudflare Pages (wrangler)                     |
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Local Dev)
 
 ### 1. Prerequisites
 
 - [Node.js](https://nodejs.org) **v18 or newer**
+- [pnpm](https://pnpm.io) (preferred) or npm
 - A free [OpenRouter API key](https://openrouter.ai/keys)
+- [Wrangler CLI](https://developers.cloudflare.com/pages/wrangler/) (for local dev / deploy)
 
 ### 2. Install
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 3. Configure
 
-Create a `.env` file in the project root:
-
-```env
-# Required: your OpenRouter API key
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-
-# Optional: override the default model (defaults to a free model)
-OPENROUTER_MODEL=openai/gpt-oss-20b:free
-```
-
-> 💡 **Tip:** Free models on OpenRouter end with `:free` and cost $0 to use. Browse all available models at [openrouter.ai/models](https://openrouter.ai/models).
-
-### 4. Run
+Create a `.dev.vars` file (for local dev) or set secrets (for production):
 
 ```bash
-npm start
+# Local dev — create .dev.vars
+echo "OPENROUTER_API_KEY=your_api_key_here" > .dev.vars
+# (wrangler pages dev reads variables from .dev.vars automatically)
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) and paste any URL to analyze.
+For production, add it as an **encrypted environment variable** in the Pages project:
+
+1. Cloudflare dashboard → **Workers & Pages** → your project → **Settings** → **Environment variables**
+2. Add `OPENROUTER_API_KEY` and tick **Encrypt**
+3. Redeploy (env variables only apply to new deployments)
+
+> 💡 **Tip:** Free models on OpenRouter end with `:free` and cost $0 to use. Browse all available models at [openrouter.ai/models](https://openrouter.ai/models). Override the primary model with `OPENROUTER_MODEL` in your `.dev.vars` or Pages env variables.
+>
+> ⚠️ `wrangler secret put` is **Workers-only** — it will not set variables on a Pages project.
+
+### 4. Run Locally
+
+```bash
+# Start the Pages dev server with a local D1 database
+pnpm run pages:dev
+```
+
+Then open [http://localhost:8788](http://localhost:8788) and paste any URL to analyze.
+
+> 💡 **Local D1:** The first run creates a local SQLite database at `.wrangler/state/d1/aurachat.db`. Run migrations first with `pnpm run pages:migrate:local` if the DB is empty.
 
 ---
 
 ## 📡 API Reference
+
+All endpoints are **Pages Functions** in `functions/api/`. They return JSON with a `Content-Type: application/json` header.
 
 ### `POST /api/analyze`
 
 Analyze a URL for AI SEO / AEO readiness.
 
 **Request body**
-
 ```json
 {
   "url": "https://example.com"
@@ -91,7 +102,6 @@ Analyze a URL for AI SEO / AEO readiness.
 ```
 
 **Response (200)**
-
 ```json
 {
   "score": 82,
@@ -127,9 +137,26 @@ Generate a CSV export from analysis data.
 
 **Response (200)** — `text/csv` binary stream with `Content-Disposition: attachment`
 
+### Authentication & Saved Reports
+
+| Method   | Endpoint                  | Description                                      |
+| -------- | ------------------------- | ------------------------------------------------ |
+| `POST`   | `/api/auth/register`      | Register a new account (email + password, min 8 chars) |
+| `POST`   | `/api/auth/login`         | Log in; sets a `HttpOnly` session cookie          |
+| `POST`   | `/api/auth/logout`        | Clear the session cookie                          |
+| `GET`    | `/api/auth/me`            | Returns the authenticated user or 401              |
+| `POST`   | `/api/auth/reset/request` | Request a password reset token                   |
+| `POST`   | `/api/auth/reset/confirm` | Reset password using a token (min 8 chars)         |
+| `GET`    | `/api/reports`            | List saved reports for the authenticated user      |
+| `POST`   | `/api/reports`            | Save a new report for the authenticated user       |
+| `GET`    | `/api/reports/{id}`       | Retrieve a specific saved report                   |
+| `DELETE` | `/api/reports/{id}`       | Delete a saved report                              |
+
+Auth uses a `aura_session` cookie (HttpOnly, SameSite=Lax, Secure on HTTPS). You can also pass a bearer token via the `Authorization` header.
+
 ### `GET /health`
 
-Returns `{ "status": "ok" }` — used by Render for health checks.
+Returns `{ "status": "ok" }` — used by hosting/monitoring health checks.
 
 ---
 
@@ -165,15 +192,15 @@ The AI is guided by a transparent scoring rubric:
 | Canonical tag present                   | +5     |
 | Open Graph title + description          | +10    |
 | JSON-LD structured data                 | +15    |
-| Logical heading hierarchy (H1/H2/H3)    | +10    |
+| Headings hierarchy (H1 present, logical H2/H3) | +10    |
 | Word count > 300                        | +5     |
 | Word count > 800                        | +5     |
 | FAQ section detected                    | +5     |
 | How-to / step-by-step content           | +5     |
 | Conversational / Q&A style              | +5     |
-| AI-agent friendly markers               | +5     |
+| AI-agent markers                        | +5     |
 | Missing meta description or no H1       | −5     |
-| Duplicate OG/title without description  | −3     |
+| Duplicate OG and title without description | −3     |
 
 ### Model Failover
 
@@ -184,53 +211,50 @@ AuraChat tries models in order and gracefully falls back on failure:
 3. `nvidia/nemotron-3-super-120b-a12b:free`
 4. `meta-llama/llama-4-maverick:free`
 
-Override the primary model with `OPENROUTER_MODEL` in your `.env`.
+Override the primary model with `OPENROUTER_MODEL` in your environment.
 
 ---
 
-## ☁️ Deployment
+## ☁️ Deployment (Cloudflare Pages)
 
-The app is a standard Express + `pg` service with **no host-specific code**, so it runs on any Node host. The recommended free setup is **Render (web service + Postgres)**.
+### Prerequisites
 
-### Render + Render Postgres (free)
+- A [Cloudflare account](https://dash.cloudflare.com/) (free tier available)
+- The [Wrangler CLI](https://developers.cloudflare.com/pages/wrangler/) installed (`npm install -g wrangler` or `npx wrangler`)
+- An [OpenRouter API key](https://openrouter.ai/keys)
 
-1. Push this repo to GitHub.
-2. **Render** — New → **Blueprint** → connect this GitHub repo. Render reads `render.yaml` and provisions both the web service and a free Postgres database automatically.
-3. In the Render service's **Environment**, set:
-    - `OPENROUTER_API_KEY` = your free key from https://openrouter.ai/keys
-    (`DATABASE_URL` is auto-injected from the Render-managed Postgres database; `NODE_ENV` and `PORT` are set automatically.)
-4. Deploy. The app connects to Render Postgres via the lightweight `pg` client and never loads PGlite in production.
-
-> 💡 **Why this avoids the OOM:** because `DATABASE_URL` is always present (Render Postgres is an external DB), the app uses the small `pg` pool (`max: 2`) and the in-process PGlite engine is never loaded. PGlite is opt-in and only used for local dev.
-
-> 💡 **Why Postgres?** The earlier JSON file store was wiped on every redeploy (ephemeral filesystem) and couldn't be shared across instances. Postgres makes user data survive deploys and scale horizontally.
-
-### Railway (alternative)
-
-Railway also works: push the repo and add a Postgres add-on (`New → Database → Add PostgreSQL`); Railway injects `DATABASE_URL` and `railway.toml` (if present) configures the build. The same `pg` + `DATABASE_URL` contract applies.
-
-
-
-##### Local development (no Postgres install needed)
-
-Leave `DATABASE_URL` **unset** locally. AuraChat then falls back to [PGlite](https://pglite.dev) — a real Postgres engine compiled to WASM that runs embedded in the process (stored in the gitignored `data-pglite/` dir). It speaks genuine Postgres SQL, so the schema and queries you test locally are identical to production:
+### One-Time D1 Setup
 
 ```bash
-npm install
-npm test          # exercises the store against embedded PGlite (real Postgres)
-npm start         # uses PGlite; open http://localhost:3000
+# Link your Cloudflare account (opens a browser)
+npx wrangler login
+
+# Create the D1 database (if it doesn't already exist)
+npx wrangler d1 create aurachat
+
+# Apply schema migrations
+pnpm run pages:migrate:remote
 ```
 
-### Other hosts
+> 💡 The `wrangler.toml` already declares the D1 binding (`DB`) and database name (`aurachat`). If you create a new database, update the `database_id` in `wrangler.toml` to match, or paste the `migrations/*.sql` files into the D1 console instead.
 
-AuraChat is a standard Express app — deploy anywhere that runs Node:
+### Deploy
 
 ```bash
-npm install
-npm start
+# Deploy the static assets + Functions
+npx wrangler pages deploy public
 ```
 
-Set `PORT` and `OPENROUTER_API_KEY` as environment variables.
+Set `OPENROUTER_API_KEY` as an **encrypted environment variable** in the Pages project (Settings → Environment variables) before deploying. It is read at runtime by `functions/_lib/analyze.js`.
+
+### Local Development
+
+```bash
+# Start the Pages dev server with a local D1 database
+pnpm run pages:dev
+```
+
+This spins up a local Pages runtime at `http://localhost:8788` with an embedded D1 database. Run `pnpm run pages:migrate:local` first if the local DB is empty.
 
 ---
 
@@ -238,17 +262,49 @@ Set `PORT` and `OPENROUTER_API_KEY` as environment variables.
 
 ```
 aurachat/
-├── server.js              # Express server, signal extraction, AI analysis
-├── db.js                  # Postgres connection (pg in prod, PGlite locally) + schema
-├── data-store.js          # Async user/session/report persistence layer
-├── generate-pdf.js        # PDFKit report generator (one-page, print-optimized)
 ├── public/
-│   └── index.html         # Frontend UI (widget dashboard, dark theme, PWA)
-├── fonts/                 # Geist variable font (self-hosted)
+│   └── index.html           # Frontend UI (widget dashboard, dark theme, PWA)
+├── functions/
+│   ├── _lib/
+│   │   ├── analyze.js       # URL fetch + signal extraction + AI model failover
+│   │   ├── auth.js          # Scrypt password hashing, session cookies, tokens
+│   │   ├── db.js            # D1 query helpers (env.DB)
+│   │   ├── http.js          # JSON responses, rate limiting, auth middleware
+│   │   ├── pdf.js           # pdf-lib report generator (one-page, print-optimized)
+│   │   └── store.js         # D1-backed data access (users, sessions, reports, rate limits)
+│   ├── api/
+│   │   ├── analyze.js          # POST /api/analyze
+│   │   ├── report/
+│   │   │   ├── pdf.js          # POST /api/report/pdf
+│   │   │   └── csv.js          # POST /api/report/csv
+│   │   ├── reports.js          # GET/POST /api/reports
+│   │   ├── reports/
+│   │   │   └── [id].js         # GET/DELETE /api/reports/{id}
+│   │   ├── auth/
+│   │   │   ├── login.js        # POST /api/auth/login
+│   │   │   ├── logout.js       # POST /api/auth/logout
+│   │   │   ├── me.js           # GET /api/auth/me
+│   │   │   ├── register.js     # POST /api/auth/register
+│   │   │   └── reset/
+│   │   │       ├── request.js  # POST /api/auth/reset/request
+│   │   │       └── confirm.js  # POST /api/auth/reset/confirm
+│   └── health.js            # GET /health
+├── migrations/
+│   ├── 0001_init.sql       # D1 schema (users, sessions, reports, reset_tokens)
+│   └── 0002_rate_limits.sql # Brute-force rate-limit table
+├── server.js              # Legacy Express server (kept for local pnpm test parity)
+├── data-store.js          # Legacy Postgres store (kept for local pnpm test parity)
+├── db.js                  # Legacy Postgres connection + schema (uses pg or PGlite)
+├── migrate.js             # Legacy migration runner (npm run migrate)
+├── generate-pdf.js        # Legacy pdfkit report generator (Node-only)
+├── generate-icons.js      # PWA icon generation
+├── fonts/                 # Geist variable font (self-hosted, for print)
+├── icc/                   # CMYK ICC profile (for print-ready PDFs)
 ├── package.json           # Dependencies and scripts
-├── render.yaml           # Render deployment config
-├── .env                   # Environment variables (not committed)
-└── .env.example           # Example environment file
+├── wrangler.toml          # Cloudflare Pages + D1 config
+├── .dev.vars              # Local env vars (not committed)
+├── .env.example           # Example environment file
+└── pnpm-workspace.yaml    # pnpm configuration
 ```
 
 ---
@@ -259,21 +315,34 @@ aurachat/
 | --------------------- | -------- | -------------------------------- | ------------------------------------ |
 | `OPENROUTER_API_KEY`  | ✅ Yes   | —                                | Your OpenRouter API key              |
 | `OPENROUTER_MODEL`    | ❌ No    | `openai/gpt-oss-20b:free`        | Primary LLM model ID                 |
-| `PORT`                | ❌ No    | `3000`                           | Server port                          |
-| `DATABASE_URL`        | ❌*      | *(unset → embedded PGlite)*      | Postgres connection string (Render injects this) |
+| `OPENROUTER_TIMEOUT_MS`| ❌ No   | `60000`                          | Timeout for OpenRouter API calls     |
 
-\* Required in production (via the Render managed Postgres); leave unset for local dev to use the embedded PGlite database.
+For local dev, create a `.dev.vars` file with:
+
+```env
+OPENROUTER_API_KEY=your_api_key_here
+# Optional: override the default model
+# OPENROUTER_MODEL=google/gemma-4-31b-it:free
+# Optional: adjust timeout (ms)
+# OPENROUTER_TIMEOUT_MS=60000
+```
+
+For production (Cloudflare Pages), set variables via the dashboard: project → **Settings** → **Environment variables** (tick **Encrypt** for secrets like `OPENROUTER_API_KEY`). Variables apply to new deployments.
 
 ---
 
 ## 🛠️ Scripts
 
-| Command         | Description                          |
-| --------------- | ------------------------------------ |
-| `npm start`     | Start production server              |
-| `npm run dev`   | Start development server (alias)     |
-| `npm test`      | Run store integration tests (PGlite) |
-| `npm run icons` | Generate PWA icons from SVG source   |
+| Command                   | Description                                      |
+| ------------------------- | ------------------------------------------------ |
+| `pnpm run pages:dev`      | Start local Pages dev server with D1              |
+| `pnpm run pages:deploy`   | Deploy to Cloudflare Pages                       |
+| `pnpm run pages:migrate:local`  | Apply D1 migrations locally              |
+| `pnpm run pages:migrate:remote` | Apply D1 migrations to remote D1       |
+| `pnpm run icons`          | Generate PWA icons from SVG source               |
+| `pnpm test`               | Run legacy store integration tests (PGlite)       |
+| `pnpm start`              | Start legacy Express server (local dev)          |
+| `npm start`               | Alias for `pnpm start`                          |
 
 ---
 
@@ -282,10 +351,12 @@ aurachat/
 - Only `http` and `https` URLs are accepted.
 - Pages are fetched with a 15-second timeout and capped at 80,000 characters.
 - Analysis quality depends on the selected LLM — free models are great for experimentation; swap in a paid model for production-grade reports.
-- The `.env` file contains secrets — **never commit it to version control**.
+- Never commit `.dev.vars` or `.env` — they contain secrets.
 - Mobile zoom is disabled via viewport meta, CSS `touch-action`, and JS gesture blocking to prevent accidental pinch/double-tap zoom on touch devices.
 - PDF reports are single-page by design — content intelligently scales to fit.
 - CSV exports include all signals, strengths, weaknesses, and recommendations in a tabular format.
+- Login brute-force protection is **DB-backed** (D1 rate-limit table) so it survives worker restarts and cold starts.
+- Password hashing uses **scrypt** (N=16384, r=8, p=1) via `@noble/hashes` — compatible with the original Node `crypto.scryptSync` parameters, so hashes can migrate from older deployments.
 
 ---
 
