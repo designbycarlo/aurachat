@@ -162,7 +162,9 @@ export async function generatePDFReport(data) {
     const row = i % half;
     const x = M + col * (contentW / 2);
     const yy = sy - row * 16;
-    page.drawText(ok ? '✓' : '✗', { x, y: yy, size: 11, font: fontBold, color: ok ? C.success : C.danger });
+    // Standard fonts are WinAnsi-encoded and cannot render Unicode glyphs like
+    // ✓/✗, so the marks are drawn as vector strokes instead of text.
+    drawMark(page, ok, x, yy, 11, ok ? C.success : C.danger);
     page.drawText(label, { x: x + 16, y: yy, size: 9, font, color: C.body });
   });
 
@@ -173,6 +175,21 @@ export async function generatePDFReport(data) {
 
   const bytes = await doc.save();
   return bytes; // Uint8Array
+}
+
+// Draw a check (ok) or cross mark as vector strokes centered at (x, y).
+function drawMark(page, ok, x, y, size, color) {
+  const cx = x + size / 2;
+  const cy = y - size * 0.42;
+  const weight = Math.max(1, size * 0.16);
+  if (ok) {
+    page.drawLine({ start: { x: cx - size * 0.42, y: cy - size * 0.02 }, end: { x: cx - size * 0.1, y: cy + size * 0.34 }, thickness: weight, color });
+    page.drawLine({ start: { x: cx - size * 0.1, y: cy + size * 0.34 }, end: { x: cx + size * 0.46, y: cy - size * 0.4 }, thickness: weight, color });
+  } else {
+    const s = size * 0.38;
+    page.drawLine({ start: { x: cx - s, y: cy - s }, end: { x: cx + s, y: cy + s }, thickness: weight, color });
+    page.drawLine({ start: { x: cx + s, y: cy - s }, end: { x: cx - s, y: cy + s }, thickness: weight, color });
+  }
 }
 
 // Draw an arc using line segments (pdf-lib has no native arc primitive).
