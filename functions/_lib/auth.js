@@ -5,8 +5,8 @@
 // via @noble/hashes, so existing Railway password hashes migrate to D1 unchanged.
 // PBKDF2 fallback is provided for environments without a secure RNG if needed.
 
-import { scryptAsync, randomBytes } from '@noble/hashes/lib/scrypt.js';
-import { bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
+import { scryptAsync } from '@noble/hashes/scrypt.js';
+import { randomBytes, bytesToHex, hexToBytes } from '@noble/hashes/utils.js';
 
 const SCRYPT_N = 16384;
 const SCRYPT_R = 8;

@@ -1,7 +1,7 @@
 {
   "name": "aurachat",
   "version": "1.0.0",
-  "description": "AuraChat — AI SEO/AEO analyzer using OpenRouter",
+  "description": "AuraChat — AI SEO/AEO analyzer using OpenRouter (Cloudflare Pages build)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -9,7 +9,11 @@
     "dev": "node server.js",
     "icons": "node generate-icons.js",
     "test": "node test/store.test.js",
-    "migrate": "node migrate.js"
+    "migrate": "node migrate.js",
+    "pages:dev": "wrangler pages dev public --d1 DB=./.wrangler/state/d1/aurachat.db --port 8788",
+    "pages:deploy": "wrangler pages deploy public",
+    "pages:migrate:local": "wrangler d1 migrations apply aurachat --local",
+    "pages:migrate:remote": "wrangler d1 migrations apply aurachat --remote"
   },
   "engines": {
     "node": ">=18.0.0"
