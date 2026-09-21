@@ -12,11 +12,11 @@ const FALLBACK_MODELS_OPENROUTER = [
   'mistralai/mistral-7b-instruct:free',
 ];
 
-const DEFAULT_MODEL_GROQ = 'llama3.2-3b-8192';
+const DEFAULT_MODEL_GROQ = 'llama-3.2-3b-8192';
 const FALLBACK_MODELS_GROQ = [
-  'llama3.1-8b-instant',
+  'llama-3.1-8b-instant',
   'gemma-7b-it',
-  'llama3.3-70b-versatile',
+  'llama-3.3-70b-versatile',
 ];
 
 export async function fetchPage(url, env) {
