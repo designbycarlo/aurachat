@@ -161,13 +161,32 @@ const openrouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-instruct:free';
-const FALLBACK_MODELS = [
-  'google/gemma-2-9b-it:free',
-  'microsoft/phi-3-mini-128k-instruct:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
-];
+const groq = createOpenAI({
+  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: process.env.GROQ_API_KEY,
+});
+
+// Use Groq as primary provider when its key is configured (reliable free tier);
+// fall back to OpenRouter only when GROQ_API_KEY is absent so the app still works
+// with just an OpenRouter key.
+const useGroq = Boolean(process.env.GROQ_API_KEY);
+
+const DEFAULT_MODEL = useGroq
+  ? 'llama3.2-3b-8192'
+  : (process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-instruct:free');
+
+const FALLBACK_MODELS = useGroq
+  ? [
+      'llama3.1-8b-instant',
+      'gemma-7b-it',
+      'llama3.3-70b-versatile',
+    ]
+  : [
+      'google/gemma-2-9b-it:free',
+      'microsoft/phi-3-mini-128k-instruct:free',
+      'meta-llama/llama-3.3-70b-instruct:free',
+      'mistralai/mistral-7b-instruct:free',
+    ];
 
 async function fetchPage(url) {
   const controller = new AbortController();
@@ -296,14 +315,14 @@ Signals from the page:
 Return ONLY a valid JSON object with these keys: score, grade, summary, strengths, weaknesses, recommendations.`;
 }
 
-async function analyzeWithModel(model, signals) {
+async function analyzeWithModel(client, model, signals) {
   const controller = new AbortController();
   const timeoutMs = Number(process.env.OPENROUTER_TIMEOUT_MS) || 60000;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let result;
   try {
     result = await generateText({
-      model: openrouter(model),
+      model: client(model),
       prompt: buildPrompt(signals),
       temperature: 0.2,
       maxTokens: 1200,
@@ -326,11 +345,12 @@ async function analyzeURL(url) {
     return { error: err.message };
   }
   const signals = extractSignals(html, url);
+  const client = useGroq ? groq : openrouter;
   const models = [DEFAULT_MODEL, ...FALLBACK_MODELS];
   let lastError;
   for (const model of models) {
     try {
-      const report = await analyzeWithModel(model, signals);
+      const report = await analyzeWithModel(client, model, signals);
       return { ...report, signals };
     } catch (err) {
       lastError = err;
