@@ -161,11 +161,11 @@ const openrouter = createOpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-instruct:free';
 const FALLBACK_MODELS = [
-  'google/gemma-4-31b-it:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'meta-llama/llama-4-maverick:free',
+  'google/gemma-2-9b-it:free',
+  'microsoft/phi-3-mini-128k-instruct:free',
+  'qwen/qwen-2.5-7b-instruct:free',
 ];
 
 async function fetchPage(url) {

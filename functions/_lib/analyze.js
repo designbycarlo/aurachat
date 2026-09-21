@@ -5,11 +5,11 @@
 // OpenRouter Chat Completions endpoint directly via the platform `fetch`. The model
 // behavior (system instructions, scoring heuristics, JSON-only response) is unchanged.
 
-const DEFAULT_MODEL = (typeof process !== 'undefined' && process.env.OPENROUTER_MODEL) || 'openai/gpt-oss-20b:free';
+const DEFAULT_MODEL = (typeof process !== 'undefined' && process.env.OPENROUTER_MODEL) || 'meta-llama/llama-3.2-3b-instruct:free';
 const FALLBACK_MODELS = [
-  'google/gemma-4-31b-it:free',
-  'nvidia/nemotron-3-super-120b-a12b:free',
-  'meta-llama/llama-4-maverick:free',
+  'google/gemma-2-9b-it:free',
+  'microsoft/phi-3-mini-128k-instruct:free',
+  'qwen/qwen-2.5-7b-instruct:free',
 ];
 
 export async function fetchPage(url, env) {
