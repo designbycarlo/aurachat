@@ -9,7 +9,7 @@ const DEFAULT_MODEL = (typeof process !== 'undefined' && process.env.OPENROUTER_
 const FALLBACK_MODELS = [
   'google/gemma-2-9b-it:free',
   'microsoft/phi-3-mini-128k-instruct:free',
-  'qwen/qwen-2.5-7b-instruct:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
 ];
 
 export async function fetchPage(url, env) {

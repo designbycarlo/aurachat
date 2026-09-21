@@ -165,7 +165,7 @@ const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.2-3b-i
 const FALLBACK_MODELS = [
   'google/gemma-2-9b-it:free',
   'microsoft/phi-3-mini-128k-instruct:free',
-  'qwen/qwen-2.5-7b-instruct:free',
+  'meta-llama/llama-3.1-8b-instruct:free',
 ];
 
 async function fetchPage(url) {
