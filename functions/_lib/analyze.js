@@ -188,8 +188,15 @@ async function callChatCompletions(baseURL, apiKey, model, signals, env) {
   }
   const data = await res.json();
   const raw = (data?.choices?.[0]?.message?.content || '').trim();
-  const jsonMatch = raw.match(/\{[\\s\\S]*\}/);
-  if (!jsonMatch) throw new Error('Model did not return JSON');
+  console.error('[DEBUG] Groq response raw:', raw.slice(0, 500));
+  console.error('[DEBUG] Groq response status:', res.status, 'ok:', res.ok);
+  console.error('[DEBUG] Groq headers:', Object.fromEntries([...Object.entries(data)[0]]));
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  console.error('[DEBUG] jsonMatch:', jsonMatch ? 'FOUND' : 'NONE');
+  if (!jsonMatch) {
+    console.error('[DEBUG] Full raw response:', raw);
+    throw new Error(`Model did not return JSON. Raw: ${raw.slice(0, 200)}`);
+  }
   return JSON.parse(jsonMatch[0]);
 }
 
