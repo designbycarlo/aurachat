@@ -12,9 +12,8 @@ const FALLBACK_MODELS_OPENROUTER = [
   'mistralai/mistral-7b-instruct:free',
 ];
 
-const DEFAULT_MODEL_GROQ = 'qwen/qwen3.8-27b';
+const DEFAULT_MODEL_GROQ = 'groq/compound-mini';
 const FALLBACK_MODELS_GROQ = [
-  'groq/compound-mini',
   'groq/compound',
 ];
 
