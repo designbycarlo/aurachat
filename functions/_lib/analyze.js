@@ -1,15 +1,22 @@
 // Analyze engine — ported from server.js. Runs inside the Pages/Workers runtime.
 //
-// Original server.js used the `@ai-sdk/openai` SDK pointed at OpenRouter. That SDK
-// pulls in Node-only dependencies that don't build for Workers, so here we call the
-// OpenRouter Chat Completions endpoint directly via the platform `fetch`. The model
-// behavior (system instructions, scoring heuristics, JSON-only response) is unchanged.
+// Uses OpenRouter and/or Groq (when GROQ_API_KEY is set). Calls Chat Completions
+// endpoints directly via the platform `fetch` since the @ai-sdk/openai SDK pulls
+// in Node-only dependencies that don't build for Workers.
 
-const DEFAULT_MODEL = (typeof process !== 'undefined' && process.env.OPENROUTER_MODEL) || 'meta-llama/llama-3.2-3b-instruct:free';
-const FALLBACK_MODELS = [
+const DEFAULT_MODEL_OPENROUTER = (typeof process !== 'undefined' && process.env.OPENROUTER_MODEL) || 'meta-llama/llama-3.2-3b-instruct:free';
+const FALLBACK_MODELS_OPENROUTER = [
   'google/gemma-2-9b-it:free',
   'microsoft/phi-3-mini-128k-instruct:free',
-  'meta-llama/llama-3.1-8b-instruct:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
+];
+
+const DEFAULT_MODEL_GROQ = 'llama3.2-3b-8192';
+const FALLBACK_MODELS_GROQ = [
+  'llama3.1-8b-instant',
+  'gemma-7b-it',
+  'llama3.3-70b-versatile',
 ];
 
 export async function fetchPage(url, env) {
@@ -35,7 +42,7 @@ export async function fetchPage(url, env) {
 export function extractSignals(html, url) {
   const lower = html.toLowerCase();
   const get = (tag, attr, limit = 1) => {
-    const regex = new RegExp(`<${tag}[^>]*${attr}=([\\"'])(.*?)\\1`, 'gi');
+    const regex = new RegExp(`<${tag}[^>]*${attr}=([\\\"'])(.*?)\\1`, 'gi');
     const matches = [];
     let m;
     while ((m = regex.exec(html)) && matches.length < limit) {
@@ -148,16 +155,14 @@ Signals from the page:
 Return ONLY a valid JSON object with these keys: score, grade, summary, strengths, weaknesses, recommendations.`;
 }
 
-// Call OpenRouter Chat Completions. Mirrors analyzeWithModel(model, signals).
-async function analyzeWithModel(model, signals, env) {
-  const apiKey = env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
-  const timeoutMs = Number(env.OPENROUTER_TIMEOUT_MS) || 60000;
+// Call a Chat Completions endpoint (OpenRouter or Groq). Mirrors analyzeWithModel.
+async function callChatCompletions(baseURL, apiKey, model, signals, env) {
+  const timeoutMs = Number(env?.OPENROUTER_TIMEOUT_MS) || 60000;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let res;
   try {
-    res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    res = await fetch(`${baseURL}/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -174,23 +179,24 @@ async function analyzeWithModel(model, signals, env) {
       signal: controller.signal,
     });
   } catch (err) {
-    if (err.name === 'AbortError') throw new Error(`OpenRouter request timed out after ${timeoutMs}ms`);
+    if (err.name === 'AbortError') throw new Error(`Request timed out after ${timeoutMs}ms`);
     throw err;
   } finally {
     clearTimeout(timeout);
   }
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`OpenRouter ${res.status}: ${errText.slice(0, 200)}`);
+    throw new Error(`${baseURL} ${res.status}: ${errText.slice(0, 200)}`);
   }
   const data = await res.json();
   const raw = (data?.choices?.[0]?.message?.content || '').trim();
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  const jsonMatch = raw.match(/\{[\\s\\S]*\}/);
   if (!jsonMatch) throw new Error('Model did not return JSON');
   return JSON.parse(jsonMatch[0]);
 }
 
 // Ported from server.js:analyzeURL — same multi-model fallback behavior.
+// Uses Groq when GROQ_API_KEY is set, otherwise falls back to OpenRouter.
 export async function analyzeURL(url, env) {
   let html;
   try {
@@ -199,11 +205,23 @@ export async function analyzeURL(url, env) {
     return { error: err.message };
   }
   const signals = extractSignals(html, url);
-  const models = [(env && env.OPENROUTER_MODEL) || DEFAULT_MODEL, ...FALLBACK_MODELS];
+
+  const useGroq = Boolean(env?.GROQ_API_KEY);
+  const models = useGroq
+    ? [DEFAULT_MODEL_GROQ, ...FALLBACK_MODELS_GROQ]
+    : [(env?.OPENROUTER_MODEL || DEFAULT_MODEL_OPENROUTER), ...FALLBACK_MODELS_OPENROUTER];
+
+  const baseURL = useGroq ? 'https://api.groq.com/openai/v1' : 'https://openrouter.ai/api/v1';
+  const apiKey = useGroq ? env.GROQ_API_KEY : env.OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    return { error: useGroq ? 'GROQ_API_KEY not configured' : 'OPENROUTER_API_KEY not configured' };
+  }
+
   let lastError;
   for (const model of models) {
     try {
-      const report = await analyzeWithModel(model, signals, env);
+      const report = await callChatCompletions(baseURL, apiKey, model, signals, env);
       return { ...report, signals };
     } catch (err) {
       lastError = err;
